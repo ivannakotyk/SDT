@@ -1,0 +1,274 @@
+@startuml
+!theme toy
+
+interface Observable {
+
+  +addObserver(o Observer)
+
+  +removeObserver(o Observer)
+
+  +notifyObservers()
+
+}
+
+interface Observer {
+
+  +update(observable Observable)
+
+}
+
+class User {
+
+  -username String
+
+  -email String
+
+  --
+
+  +login() boolean
+
+  +logout() void
+
+}
+
+class AudioEditor {
+
+  -instance AudioEditor {static}
+
+  --
+
+  +getInstance() AudioEditor {static}
+
+  +openProject(path String)
+
+  +saveProject()
+
+}
+
+class Project implements Observable {
+
+  -name String
+
+  -filePath String
+
+  -creationDate Date
+
+  --
+
+  +addTrack(name String) AudioTrack
+
+  +removeTrack(track AudioTrack)
+
+  +getTracks() ListAudioTrack
+
+  +export(format String)
+
+}
+
+class AudioTrack {
+
+  -id int
+
+  -name String
+
+  -order int
+
+  -volume float
+
+  -isMuted boolean
+
+  --
+
+  +addSegment(segment AudioSegment)
+
+}
+
+class AudioSegment {
+
+  -startTime Duration
+
+  -endTime Duration
+
+  --
+
+  +copy() AudioSegment
+
+  +cut() AudioSegment
+
+  +paste(track AudioTrack, time Duration)
+
+  +deform()
+
+}
+
+class AudioFile {
+
+  -path String
+
+  -format String
+
+  --
+
+  +read() byte[]
+
+}
+
+interface IAudioFormatAdapter {
+
+  +decode(file AudioFile) byte[]
+
+  +encode(data byte[], format String) AudioFile
+
+}
+
+class MP3Adapter implements IAudioFormatAdapter {
+
+  +decode(file AudioFile) byte[]
+
+  +encode(data byte[], format String) AudioFile
+
+}
+
+
+
+class OGGAdapter implements IAudioFormatAdapter {
+
+  +decode(file AudioFile) byte[]
+
+  +encode(data byte[], format String) AudioFile
+
+}
+
+class WAVAdapter implements IAudioFormatAdapter {
+
+  +decode(file AudioFile) byte[]
+
+  +encode(data byte[], format String) AudioFile
+
+}
+
+class FLACAdapter implements IAudioFormatAdapter {
+
+  +decode(file AudioFile) byte[]
+
+  +encode(data byte[], format String) AudioFile
+
+}
+
+class UIMediator {
+
+  +notify(sender Component, event String)
+
+}
+
+class PlaybackController {
+
+}
+
+class TimelineView implements Observer {
+
+  +update(observable Observable)
+
+}
+
+class TrackListView implements Observer {
+
+  +update(observable Observable)
+
+}
+
+class Server {
+
+  +handleRequest(request String)
+
+}
+
+interface IProjectRepository {
+
+  +findById(id int) Project
+
+  +save(p Project)
+
+  +delete(id int)
+
+}
+
+class ProjectService {
+
+  -projectRepository IProjectRepository
+
+  --
+
+  +createProject(user User, name String) Project
+
+  +loadProject(id int) Project
+
+}
+
+class OracleProjectRepository implements IProjectRepository {
+
+  ' Клас, який реалізує доступ до Oracle DB
+
+}
+
+
+
+' Зв'язки
+
+User 1 -- 0.. Project
+
+Project 1 -- 0.. AudioTrack  складається з
+
+AudioTrack 1 -- 0.. AudioSegment  складається з
+
+AudioSegment .. AudioFile  отримує дані
+
+ProjectService 1 -- 1 IProjectRepository  залежить від
+
+AudioFile 1 -- 1 IAudioFormatAdapter
+
+Project .. IAudioFormatAdapter  використовує
+
+ProjectService .. Project  працює з
+
+OracleProjectRepository .. Project  маніпулює сутностями
+
+
+
+AudioEditor 1 o-- 1 Project  керує
+
+AudioEditor 1 o-- 1 UIMediator
+
+AudioEditor 1 o-- 1 PlaybackController
+
+AudioEditor 1 -- 1 Server
+
+
+
+' Патерни
+
+IAudioFormatAdapter -- MP3Adapter
+
+IAudioFormatAdapter -- OGGAdapter
+
+IAudioFormatAdapter -- WAVAdapter
+
+IAudioFormatAdapter -- FLACAdapter
+
+IProjectRepository .. OracleProjectRepository  реалізує
+
+
+Observable .. Project
+
+Observer .. TimelineView
+
+Observer .. TrackListView
+
+
+UIMediator .. TimelineView
+
+UIMediator .. TrackListView
+
+PlaybackController --o UIMediator
+
+@enduml
