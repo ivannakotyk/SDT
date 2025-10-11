@@ -1,3 +1,0 @@
-#!/bin/sh
-MVNW_DIR="$(dirname "$0")"
-exec mvn "$@"

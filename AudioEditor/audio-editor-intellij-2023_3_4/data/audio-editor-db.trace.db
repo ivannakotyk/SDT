@@ -1,9 +1,0 @@
-2025-10-10 01:53:47.921156+03:00 jdbc[3]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "PROJECT_ENTITY" not found (this database is empty); SQL statement:
-select pe1_0.id,pe1_0.created_at,pe1_0.file_path,pe1_0.project_name,pe1_0.updated_at,pe1_0.user_id from project_entity pe1_0 where pe1_0.id=? [42104-224]
-2025-10-10 03:22:21.789488+03:00 jdbc[13]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "PROJECTS" not found; SQL statement:
-SELECT id, project_name, user_id FROM projects [42102-224]
-2025-10-10 03:22:35.146270+03:00 jdbc[14]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "PROJECTS" not found; SQL statement:
-SELECT id, project_name, user_id FROM projects [42102-224]
