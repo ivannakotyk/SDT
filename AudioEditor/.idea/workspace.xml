@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="7708653a-9ae5-4daa-a082-fd1f5c241668" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/AudioFile.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/ConverterService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/FileStorageService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/FFmpegAdapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/FLACAdapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/IAudioFormatAdapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/MP3Adapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/OGGAdapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/server/src/main/java/com/ivanka/audioeditor/server/service/adapter/WAVAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/core/ObservableBus.java" beforeDir="false" afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/core/ObservableBus.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/CreateProjectRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/CreateProjectRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/ProjectTrack.java" beforeDir="false" afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/ProjectTrack.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/UserDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client/src/main/java/com/ivanka/audioeditor/client/model/UserDTO.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="33saW4j8IoHPncDyu3TMp4ugoov" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.MainApp.executor": "Run",
+    "Application.Unnamed.executor": "Run",
+    "RequestMappingsPanelOrder0": "0",
+    "RequestMappingsPanelOrder1": "1",
+    "RequestMappingsPanelWidth0": "75",
+    "RequestMappingsPanelWidth1": "75",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "Spring Boot.AudioEditorServerApplication.executor": "Run",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "E:/3 Курс/ТРПЗ/AudioEditor/audio-editor-intellij-2023_3_4/client",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "editing.templates",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="Application.MainApp">
+    <configuration name="MainApp" type="Application" factoryName="Application" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.ivanka.audioeditor.client.MainApp" />
+      <module name="audio-editor-client" />
+      <option name="VM_PARAMETERS" value="--module-path &quot;C:\Users\KOTIK\.m2\repository\org\openjfx\javafx-controls\21.0.1;C:\Users\KOTIK\.m2\repository\org\openjfx\javafx-fxml\21.0.1;C:\Users\KOTIK\.m2\repository\org\openjfx\javafx-graphics\21.0.1;C:\Users\KOTIK\.m2\repository\org\openjfx\javafx-base\21.0.1&quot; --add-modules javafx.controls,javafx.fxml" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/audio-editor-intellij-2023_3_4/client" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="AudioEditorServerApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <module name="audio-editor-server" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.ivanka.audioeditor.server.AudioEditorServerApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="Application.MainApp" />
+      <item itemvalue="Spring Boot.AudioEditorServerApplication" />
+    </list>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="7708653a-9ae5-4daa-a082-fd1f5c241668" name="Changes" comment="" />
+      <created>1760108261888</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1760108261888</updated>
+      <workItem from="1760108262947" duration="84000" />
+      <workItem from="1760108741397" duration="22127000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/AudioEditor$MainApp.ic" NAME="MainApp Coverage Results" MODIFIED="1760111399952" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="idea" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />
+  </component>
+</project>

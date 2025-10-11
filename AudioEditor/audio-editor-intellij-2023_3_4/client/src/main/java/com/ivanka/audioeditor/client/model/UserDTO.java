@@ -6,5 +6,5 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class UserDTO {
     public long id;
     public String userName;
-    public String userEmail;
+    public String Email;
 }
