@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/audio-editor-db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driverClassName: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  servlet:
+    multipart:
+      max-file-size: 1500MB
+      max-request-size: 1500MB
+
+server:
+  port: 8080
+
+# 🗂️ Шляхи до директорій зберігання
+storage:
+  root: ${user.dir}/storage
+  uploadsDir: ${user.dir}/storage/uploads
+  exportsDir: ${user.dir}/storage/exports
+  wavDir: ${user.dir}/storage/wav
+
+# ⚙️ Шлях до ffmpeg (якщо в PATH, просто лиш ffmpeg)
+ffmpeg:
+  path: ffmpeg
