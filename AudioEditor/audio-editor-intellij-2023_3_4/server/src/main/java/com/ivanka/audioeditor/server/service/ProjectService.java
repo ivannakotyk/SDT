@@ -14,22 +14,29 @@ public class ProjectService {
     private final TrackRepository tracks;
 
     public ProjectService(ProjectRepository projects, AppUserRepository users, TrackRepository tracks) {
-        this.projects = projects; this.users = users; this.tracks = tracks;
+        this.projects = projects;
+        this.users = users;
+        this.tracks = tracks;
     }
 
     @Transactional
     public ProjectEntity createProject(Long userId, String name) {
-        AppUser user = users.findById(userId).orElseThrow();
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: id=" + userId));
         ProjectEntity p = new ProjectEntity(name, user);
         return projects.save(p);
     }
 
     public List<ProjectEntity> listByUser(Long userId) {
-        AppUser user = users.findById(userId).orElseThrow();
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: id=" + userId));
         return projects.findByUser(user);
     }
 
-    public ProjectEntity get(Long projectId) { return projects.findById(projectId).orElseThrow(); }
+    public ProjectEntity get(Long projectId) {
+        return projects.findById(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: id=" + projectId));
+    }
 
     @Transactional
     public TrackEntity addTrack(Long projectId, String name) {

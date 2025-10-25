@@ -32,7 +32,7 @@ public class FFmpegAdapter implements IAudioFormatAdapter {
             cmd.add("-codec:a"); cmd.add("libvorbis");
             cmd.add("-qscale:a"); cmd.add("5");
         }
-        // для wav/flac можна лишити дефолтні налаштування
+
         cmd.add(out.getAbsolutePath());
 
         ProcessBuilder pb = new ProcessBuilder(cmd);

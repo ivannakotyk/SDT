@@ -28,15 +28,13 @@ public class LoginView {
             -fx-font-family: 'Segoe UI', sans-serif;
         """);
 
-        // Заголовок
-        Label title = new Label("🎧 Welcome to Audio Editor");
+        Label title = new Label("Welcome to Audio Editor");
         title.setStyle("""
             -fx-text-fill: white;
             -fx-font-size: 26px;
             -fx-font-weight: bold;
         """);
 
-        // Поля введення
         TextField name = new TextField();
         name.setPromptText("Enter your name");
         TextField email = new TextField();
@@ -48,7 +46,6 @@ public class LoginView {
         name.setStyle("-fx-background-radius: 10; -fx-padding: 8;");
         email.setStyle("-fx-background-radius: 10; -fx-padding: 8;");
 
-        // Повідомлення про статус
         Label nameStatus = new Label();
         nameStatus.setTextFill(Color.LIGHTGRAY);
         Label emailStatus = new Label();
@@ -74,7 +71,6 @@ public class LoginView {
 
         root.getChildren().addAll(title, form);
 
-        // Валідація під час введення
         name.textProperty().addListener((obs, oldV, newV) -> {
             if (isValidName(newV)) {
                 nameStatus.setText("Valid name");
@@ -95,7 +91,6 @@ public class LoginView {
             }
         });
 
-        // --- Обробка кнопки ---
         go.setOnAction(e -> {
             String username = name.getText().trim();
             String userEmail = email.getText().trim();
@@ -131,7 +126,6 @@ public class LoginView {
         });
     }
 
-    // ======= Перевірки =======
 
     private boolean isValidName(String name) {
         return name != null && name.matches("[A-Za-zА-Яа-яІіЇїЄє'\\s]{2,}");
@@ -141,12 +135,10 @@ public class LoginView {
         return email != null && email.matches("^[\\w._%+-]+@[\\w.-]+\\.[A-Za-z]{2,}$");
     }
 
-    // ======= Спливаючі повідомлення =======
     private void alertInfo(String msg) {
         new Alert(Alert.AlertType.INFORMATION, msg).showAndWait();
     }
 
-    // ======= Головний вузол =======
     public Parent getRoot() {
         return root;
     }

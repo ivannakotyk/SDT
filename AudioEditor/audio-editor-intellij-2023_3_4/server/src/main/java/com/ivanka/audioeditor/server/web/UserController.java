@@ -23,11 +23,11 @@ public class UserController {
             @RequestParam("email") String email) {
 
         if (name == null || name.trim().isEmpty() || email == null || email.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("❌ Name and email cannot be empty");
+            return ResponseEntity.badRequest().body("Name and email cannot be empty");
         }
 
         if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
-            return ResponseEntity.badRequest().body("❌ Invalid email format");
+            return ResponseEntity.badRequest().body("Invalid email format");
         }
 
         AppUser user = userService.findOrCreate(name.trim(), email.trim());

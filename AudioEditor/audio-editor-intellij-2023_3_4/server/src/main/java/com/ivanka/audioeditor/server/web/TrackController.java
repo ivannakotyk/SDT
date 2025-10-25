@@ -4,9 +4,11 @@ import com.ivanka.audioeditor.server.model.ProjectEntity;
 import com.ivanka.audioeditor.server.model.TrackEntity;
 import com.ivanka.audioeditor.server.repo.TrackRepository;
 import com.ivanka.audioeditor.server.service.ProjectService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/tracks")
@@ -22,8 +24,27 @@ public class TrackController {
     }
 
     @GetMapping("/by-project/{projectId}")
-    public List<TrackEntity> byProject(@PathVariable Long projectId) {
-        ProjectEntity p = projects.get(projectId);
-        return repo.findByProjectOrderByTrackOrderAsc(p);
+    public ResponseEntity<?> byProject(@PathVariable Long projectId) {
+        try {
+            ProjectEntity p = projects.get(projectId);
+            List<TrackEntity> list = repo.findByProjectOrderByTrackOrderAsc(p);
+            return ResponseEntity.ok(list);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "status", 404,
+                            "error", "Project not found",
+                            "message", e.getMessage(),
+                            "projectId", projectId
+                    ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "status", 500,
+                            "error", "Server error while loading tracks",
+                            "message", e.getMessage(),
+                            "projectId", projectId
+                    ));
+        }
     }
 }

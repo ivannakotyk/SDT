@@ -18,23 +18,19 @@ spring:
       enabled: true
       path: /h2-console
 
+  servlet:
+    multipart:
+      max-file-size: 1000MB
+      max-request-size: 1000MB
+
 server:
   port: 8080
 
-# 🗂️ Шляхи до директорій зберігання
 storage:
   root: ${user.dir}/storage
   uploadsDir: ${user.dir}/storage/uploads
   exportsDir: ${user.dir}/storage/exports
   wavDir: ${user.dir}/storage/wav
 
-# ⚙️ Шлях до ffmpeg (якщо в PATH, просто лиш ffmpeg)
 ffmpeg:
   path: ffmpeg
-
-  spring:
-    servlet:
-      multipart:
-        max-file-size: 200MB
-        max-request-size: 200MB
-

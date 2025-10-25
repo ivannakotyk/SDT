@@ -37,19 +37,8 @@ public class AudioFileEntity {
 
     public String getFileFormat() { return fileFormat; }
     public void setFileFormat(String fileFormat) { this.fileFormat = fileFormat; }
-
-    public Double getDurationSec() { return durationSec; }
-    public void setDurationSec(Double durationSec) { this.durationSec = durationSec; }
-
-    public Integer getSampleRate() { return sampleRate; }
-    public void setSampleRate(Integer sampleRate) { this.sampleRate = sampleRate; }
-
-    public Long getFileSizeBytes() { return fileSizeBytes; }
     public void setFileSizeBytes(Long fileSizeBytes) { this.fileSizeBytes = fileSizeBytes; }
 
-    public File toFile() {
-        return new File(filePath);
-    }
 
     public static AudioFileEntity fromFile(File f, String format) {
         AudioFileEntity entity = new AudioFileEntity();

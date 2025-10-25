@@ -13,6 +13,10 @@ public class ProjectEntity {
     public UserDTO user;
     public List<ProjectTrack> tracks;
 
+    public String getName() {
+        return projectName;
+    }
+
     @Override
     public String toString() {
         return "ProjectEntity{" +

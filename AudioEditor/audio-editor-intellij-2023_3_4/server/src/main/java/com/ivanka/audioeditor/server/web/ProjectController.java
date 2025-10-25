@@ -1,6 +1,7 @@
 package com.ivanka.audioeditor.server.web;
 
 import com.ivanka.audioeditor.server.dto.CreateProjectRequest;
+import com.ivanka.audioeditor.server.dto.ProjectResponse;
 import com.ivanka.audioeditor.server.model.ProjectEntity;
 import com.ivanka.audioeditor.server.model.TrackEntity;
 import com.ivanka.audioeditor.server.repo.TrackRepository;
@@ -23,9 +24,15 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ProjectEntity create(@RequestBody CreateProjectRequest req) {
-        return service.createProject(req.userId(), req.projectName());
+    public ProjectResponse create(@RequestBody CreateProjectRequest req) {
+        var project = service.createProject(req.userId(), req.projectName());
+        return new ProjectResponse(
+                project.getId(),
+                project.getProjectName(),
+                project.getUser().getId()
+        );
     }
+
 
     @GetMapping("/by-user/{userId}")
     public List<ProjectEntity> byUser(@PathVariable("userId") Long userId) {

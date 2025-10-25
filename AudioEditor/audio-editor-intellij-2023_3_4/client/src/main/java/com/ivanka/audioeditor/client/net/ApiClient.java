@@ -123,4 +123,5 @@ public class ApiClient {
         String value = parts.length > 1 ? parts[1] : "";
         return key + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
+
 }
