@@ -1,6 +1,5 @@
 package com.ivanka.audioeditor.client;
 
-import com.ivanka.audioeditor.client.ui.EditorView;
 import com.ivanka.audioeditor.client.ui.LoginView;
 import javafx.application.Application;
 import javafx.scene.Scene;

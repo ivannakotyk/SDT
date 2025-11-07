@@ -20,10 +20,18 @@ public class ProjectService {
     }
 
     @Transactional
-    public ProjectEntity createProject(Long userId, String name) {
+    public ProjectEntity createProject(Long userId, String requestedName) {
         AppUser user = users.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: id=" + userId));
-        ProjectEntity p = new ProjectEntity(name, user);
+
+        List<String> existingNames = projects.findByUser(user).stream()
+                .map(ProjectEntity::getProjectName)
+                .map(String::trim)
+                .toList();
+
+        String finalName = generateUniqueName(requestedName.trim(), existingNames);
+
+        ProjectEntity p = new ProjectEntity(finalName, user);
         return projects.save(p);
     }
 
@@ -39,12 +47,30 @@ public class ProjectService {
     }
 
     @Transactional
-    public TrackEntity addTrack(Long projectId, String name) {
+    public TrackEntity addTrack(Long projectId, String requestedName) {
         ProjectEntity p = get(projectId);
-        int order = p.getTracks().size();
-        TrackEntity t = new TrackEntity(p, name, order);
-        p.getTracks().add(t);
-        projects.save(p);
-        return t;
+
+        List<String> existingNames = p.getTracks().stream()
+                .map(TrackEntity::getTrackName)
+                .map(String::trim)
+                .toList();
+
+        String finalName = generateUniqueName(requestedName.trim(), existingNames);
+
+        int order = tracks.nextOrderForProject(p);
+        TrackEntity t = new TrackEntity(p, finalName, order);
+        return tracks.save(t);
+    }
+
+    private String generateUniqueName(String baseName, List<String> existingNames) {
+        if (!existingNames.contains(baseName)) return baseName;
+
+        int counter = 2;
+        String newName;
+        do {
+            newName = baseName + " " + counter++;
+        } while (existingNames.contains(newName));
+
+        return newName;
     }
 }

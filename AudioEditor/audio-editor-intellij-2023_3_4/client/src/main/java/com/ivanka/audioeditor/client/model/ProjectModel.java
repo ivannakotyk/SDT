@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProjectModel {
+    public long userId;
+
     public static class Track {
         public long id;
         public String name;

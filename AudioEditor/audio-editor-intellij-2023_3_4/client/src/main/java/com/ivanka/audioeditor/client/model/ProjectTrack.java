@@ -7,6 +7,11 @@ public class ProjectTrack {
     private long id;
     private String trackName;
     private int trackOrder;
+    private double durationSec; // рекомендовано — бекенд часто повертає
+
+    public ProjectTrack() {
+        // ПУСТИЙ КОНСТРУКТОР ДЛЯ JACKSON
+    }
 
     public ProjectTrack(long id, String trackName, int trackOrder) {
         this.id = id;
@@ -17,7 +22,6 @@ public class ProjectTrack {
     public long getId() {
         return id;
     }
-
     public void setId(long id) {
         this.id = id;
     }
@@ -25,6 +29,21 @@ public class ProjectTrack {
     public String getTrackName() {
         return trackName;
     }
+    public void setTrackName(String trackName) {
+        this.trackName = trackName;
+    }
 
+    public int getTrackOrder() {
+        return trackOrder;
+    }
+    public void setTrackOrder(int trackOrder) {
+        this.trackOrder = trackOrder;
+    }
 
+    public double getDurationSec() {
+        return durationSec;
+    }
+    public void setDurationSec(double durationSec) {
+        this.durationSec = durationSec;
+    }
 }
