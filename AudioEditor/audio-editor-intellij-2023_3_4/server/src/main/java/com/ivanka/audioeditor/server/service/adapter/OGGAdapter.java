@@ -17,4 +17,9 @@ public class OGGAdapter implements IAudioFormatAdapter {
         System.out.println("Використовується OGGAdapter → FFmpeg");
         return ffmpegAdapter.convert(inputFile, "ogg");
     }
+
+    @Override
+    public boolean supports(String format) {
+        return "ogg".equalsIgnoreCase(format);
+    }
 }

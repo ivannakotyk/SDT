@@ -17,4 +17,9 @@ public class FLACAdapter implements IAudioFormatAdapter {
         System.out.println("Використовується FLACAdapter → FFmpeg");
         return ffmpegAdapter.convert(inputFile, "flac");
     }
+
+    @Override
+    public boolean supports(String format) {
+        return "flac".equalsIgnoreCase(format);
+    }
 }

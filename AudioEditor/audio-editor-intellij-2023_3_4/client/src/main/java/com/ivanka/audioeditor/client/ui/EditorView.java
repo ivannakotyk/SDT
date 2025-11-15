@@ -8,7 +8,11 @@ import com.ivanka.audioeditor.client.core.mediator.EditorMediator;
 import com.ivanka.audioeditor.client.core.modules.*;
 import com.ivanka.audioeditor.client.model.ProjectModel;
 import com.ivanka.audioeditor.client.model.ProjectTrack;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioSegment;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
 import com.ivanka.audioeditor.client.ui.tree.ProjectTreeItem;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -20,10 +24,12 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-
-import javax.sound.sampled.*;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -32,22 +38,18 @@ public class EditorView implements EditorContext {
     private final BorderPane root = new BorderPane();
     private final long userId;
     private ProjectModel project = new ProjectModel();
+    private AudioProject audioProject;
     private final ProjectTreeItem rootItem = new ProjectTreeItem(-1, "Projects");
     private final TreeView<String> tree = new TreeView<>(rootItem);
-
     private final Map<Long, List<ProjectTrack>> trackCache = new HashMap<>();
-    private final Map<String, TrackData> trackDataStore   = new HashMap<>();
-    private final Map<String, File>      trackTempStore   = new HashMap<>();
     private final Map<String, Selection> selectionsStore  = new HashMap<>();
-    private final Map<String, byte[]>    clipboardStore   = new HashMap<>();
-    private final Map<String, TrackData> trackDataMap   = namespacedMap(() -> project.id, trackDataStore);
-    private final Map<String, File>      trackTempFiles = namespacedMap(() -> project.id, trackTempStore);
+    private final Map<Long, AudioProject> projectCache = new HashMap<>();
     private final Map<String, Selection> selections     = namespacedMap(() -> project.id, selectionsStore);
-    private final Map<String, byte[]>    clipboard      = namespacedMap(() -> project.id, clipboardStore);
-
+    private String activeTrackName = null;
     private TreeItem<String> currentProjectNode;
     private final VBox tracksPane = new VBox(15);
     private final Stage stage;
+    private double activeTrackCursorFrac = 0.0;
 
     public EditorView(Stage stage, long userId) {
         this.stage = stage;
@@ -62,8 +64,13 @@ public class EditorView implements EditorContext {
         Button importAudio = new Button("Import Audio");
         Button exportAudio = new Button("Export Audio");
         Button refresh = new Button("Refresh");
+        Button playProject = new Button("Play Project");
+        Button stopProject = new Button("Stop Project");
 
-        top.getChildren().addAll(newProject, addTrack, importAudio, exportAudio, refresh, new Separator());
+        playProject.setOnAction(ev -> playComposite());
+        stopProject.setOnAction(ev -> stopComposite());
+
+        top.getChildren().addAll(newProject, addTrack, importAudio, exportAudio, refresh, new Separator(), playProject, stopProject);
         top.setAlignment(Pos.CENTER_LEFT);
         root.setTop(top);
 
@@ -74,19 +81,15 @@ public class EditorView implements EditorContext {
 
         VBox center = new VBox(10);
         center.setPadding(new Insets(10));
-
         Label waveformLabel = new Label("Waveform View");
         waveformLabel.setTextFill(Color.WHITE);
         waveformLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
-
         tracksPane.setPadding(new Insets(10));
         tracksPane.setBackground(new Background(new BackgroundFill(Color.web("#0b0f14"), new CornerRadii(10), Insets.EMPTY)));
         tracksPane.setBorder(new Border(new BorderStroke(Color.web("#1e2a38"), BorderStrokeStyle.SOLID, new CornerRadii(10), new BorderWidths(1))));
-
         ScrollPane scroll = new ScrollPane(tracksPane);
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background: #0b0f14; -fx-background-color: #0b0f14;");
-
         center.getChildren().addAll(waveformLabel, scroll);
         root.setCenter(center);
 
@@ -110,16 +113,13 @@ public class EditorView implements EditorContext {
         mediator.register(exportModule.key(),        exportModule);
         mediator.register(notificationModule.key(),  notificationModule);
         mediator.register(clipboardModule.key(),     clipboardModule);
-
         editor.attach(new com.ivanka.audioeditor.client.core.observers.MediatorObserver(mediator));
 
         newProject.setOnAction(e -> {
             Set<String> existingNames = rootItem.getChildren().stream()
                     .map(item -> item.getValue().trim())
                     .collect(Collectors.toSet());
-
             String suggestedName = generateUniqueName("My Project", existingNames);
-
             TextInputDialog d = new TextInputDialog(suggestedName);
             d.setHeaderText("Enter the new project name");
             d.setContentText("Name:");
@@ -134,7 +134,6 @@ public class EditorView implements EditorContext {
                 );
             });
         });
-
         addTrack.setOnAction(e -> {
             if (project.id == 0 || currentProjectNode == null) {
                 alertWarn("Select or create a project first!");
@@ -159,45 +158,54 @@ public class EditorView implements EditorContext {
                 );
             });
         });
-
-        importAudio.setOnAction(e -> editor.notifyObservers(new EditorEvent(EditorEventType.IMPORT_REQUEST).with("stage", stage)));
-        exportAudio.setOnAction(e -> editor.notifyObservers(new EditorEvent(EditorEventType.EXPORT_REQUEST).with("stage", stage)));
+        importAudio.setOnAction(e ->
+                editor.notifyObservers(new EditorEvent(EditorEventType.IMPORT_REQUEST).with("stage", stage)));
+        exportAudio.setOnAction(e ->
+                editor.notifyObservers(new EditorEvent(EditorEventType.EXPORT_REQUEST).with("stage", stage)));
         refresh.setOnAction(e -> {
             if (currentProjectNode != null) {
                 getTrackCache().remove(getProject().id);
-                editor.notifyObservers(new EditorEvent(EditorEventType.TRACKS_REFRESH_REQUEST).with("projectNode", currentProjectNode));
+                projectCache.remove(getProject().id);
+                editor.notifyObservers(new EditorEvent(EditorEventType.TRACKS_REFRESH_REQUEST)
+                        .with("projectNode", currentProjectNode));
             }
         });
-
         tree.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
             if (newSel == null || newSel == rootItem) return;
             if (!(newSel instanceof ProjectTreeItem pItem)) return;
-
             long pid = pItem.getProjectId();
             String pname = pItem.getValue();
-
             editor.notifyObservers(new EditorEvent(EditorEventType.PROJECT_SELECTED)
                     .with("projectId", pid)
                     .with("projectName", pname)
                     .with("projectNode", pItem));
         });
-
         root.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
             if (currentProjectNode == null) return;
+
             String trackName = getActiveTrackName();
             if (trackName == null) return;
 
             if (e.isControlDown() && e.getCode() == KeyCode.C) {
+
                 editor.notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_COPY)
                         .with("projectId", project.id)
                         .with("trackName", trackName));
                 e.consume();
+
             } else if (e.isControlDown() && e.getCode() == KeyCode.V) {
+                setActiveTrackName(trackName);
+                double frac = getActiveTrackCursor();
+
                 editor.notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_PASTE)
                         .with("projectId", project.id)
-                        .with("trackName", trackName));
+                        .with("trackName", trackName)
+                        .with("cursorFrac", frac));
+
                 e.consume();
+
             } else if (e.getCode() == KeyCode.DELETE || (e.isControlDown() && e.getCode() == KeyCode.X)) {
+
                 editor.notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_CUT)
                         .with("projectId", project.id)
                         .with("trackName", trackName));
@@ -207,11 +215,46 @@ public class EditorView implements EditorContext {
 
         drawPlaceholder();
     }
+    public void exportComposite(File out) {
+        try {
+            if (audioProject != null)
+                audioProject.exportTo(out, "wav");
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            alertError("Failed to export Composite project.");
+        }
+    }
+    public void playComposite() {
+        try {
+            if (audioProject != null) {
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        audioProject.play();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Platform.runLater(() ->
+                                alertError("Playback error: " + e.getMessage())
+                        );
+                    }
+                });
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            alertError("Failed to start playback thread.");
+        }
+    }
+    public void stopComposite() {
+        try {
+            if (audioProject != null)
+                audioProject.stop();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
 
     private static <V> Map<String, V> namespacedMap(Supplier<Long> pidSupplier, Map<String, V> backing) {
         return new AbstractMap<>() {
             private String k(String key) { return pidSupplier.get() + ":" + key; }
-
             @Override public V put(String key, V value) { return backing.put(k(key), value); }
             @Override public V get(Object key)          { return backing.get(k(String.valueOf(key))); }
             @Override public boolean containsKey(Object key){ return backing.containsKey(k(String.valueOf(key))); }
@@ -232,19 +275,16 @@ public class EditorView implements EditorContext {
             }
         };
     }
-
     private String generateUniqueName(String requested, Set<String> existingNames) {
         String base = requested.trim();
         String prefix = base;
         int startNumber = 1;
-
         var m = java.util.regex.Pattern.compile("^(.*?)(\\s(\\d+))$").matcher(base);
         if (m.matches()) {
             prefix = m.group(1);
             startNumber = Integer.parseInt(m.group(3));
         }
         if (!existingNames.contains(base)) return base;
-
         int n = startNumber + 1;
         String candidate;
         do {
@@ -252,33 +292,13 @@ public class EditorView implements EditorContext {
         } while (existingNames.contains(candidate));
         return candidate;
     }
-
-    private String generateUniqueTrackName(String requested, Set<String> existingNames) {
-        String base = requested.trim();
-        String prefix = base;
-        int startNumber = 1;
-
-        var m = java.util.regex.Pattern.compile("^(.*?)(\\s(\\d+))$").matcher(base);
-        if (m.matches()) {
-            prefix = m.group(1);
-            startNumber = Integer.parseInt(m.group(3));
-        }
-        if (!existingNames.contains(base)) return base;
-
-        int n = startNumber + 1;
-        String candidate;
-        do {
-            candidate = prefix + " " + n++;
-        } while (existingNames.contains(candidate));
-        return candidate;
-    }
-
     private void drawPlaceholder() {
         tracksPane.getChildren().clear();
         Label placeholder = new Label(" Select a project to view its tracks");
         placeholder.setTextFill(Color.web("#aaa"));
         tracksPane.getChildren().add(placeholder);
     }
+
 
     @Override
     public void redrawTrack(String trackName) {
@@ -288,9 +308,7 @@ public class EditorView implements EditorContext {
                     String lblName = lbl.getText().trim();
                     if (lblName.equals(trackName)) {
                         if (box.getChildren().size() > 1 && box.getChildren().get(1) instanceof Canvas canvas) {
-                            var td = trackDataMap.get(trackName);
-                            var sel = selections.computeIfAbsent(trackName, k -> new Selection());
-                            drawWaveform(canvas, td, sel);
+                            drawWaveform(canvas, trackName);
                             return;
                         }
                     }
@@ -299,46 +317,50 @@ public class EditorView implements EditorContext {
         }
     }
 
-    public void drawWaveform(Canvas canvas, TrackData td, Selection sel) {
-        if (td == null || td.pcm == null || td.pcm.length == 0) {
+    @Override
+    public void drawWaveform(Canvas canvas, String trackName) {
+        AudioSegment seg = getMainSegment(trackName);
+        var sel = selections.computeIfAbsent(trackName, k -> new Selection());
+
+        if (seg == null) {
             drawEmptyBackground(canvas, "No audio data. Import a file to this track.");
             return;
         }
+        float[][] samples = seg.getSamples();
+        if (samples == null || samples.length == 0 || samples[0].length == 0) {
+            drawEmptyBackground(canvas, "Segment is empty.");
+            return;
+        }
+
+        float[] leftChannel = samples[0];
+        int totalSamples = leftChannel.length;
+        double durationSec = seg.getDurationSec();
+
         GraphicsContext g = canvas.getGraphicsContext2D();
         g.setFill(Color.web("#0b0f14"));
         g.fillRoundRect(0, 0, canvas.getWidth(), canvas.getHeight(), 16, 16);
-
-        drawTimeline(g, canvas.getWidth(), canvas.getHeight(), td.durationSec);
-
+        drawTimeline(g, canvas.getWidth(), canvas.getHeight(), durationSec);
         g.setStroke(Color.web("#38bdf8"));
         double mid = canvas.getHeight() / 2.0;
 
         int width = (int) canvas.getWidth();
         if (width <= 0) return;
 
-        int frameSize = td.frameSize > 0 ? td.frameSize : 2;
-        if (frameSize <= 0) return;
-
-        int totalFrames = td.pcm.length / frameSize;
-        if (totalFrames <= 0) return;
-
-        int framesPerPixel = Math.max(1, totalFrames / width);
+        int samplesPerPixel = Math.max(1, totalSamples / width);
 
         for (int x = 0; x < width; x++) {
             float min = 1.0f;
             float max = -1.0f;
-            int startFrame = x * framesPerPixel;
+            int startSample = x * samplesPerPixel;
 
-            for (int i = 0; i < framesPerPixel; i++) {
-                int frameIndex = startFrame + i;
-                if (frameIndex >= totalFrames) break;
-                int byteIndex = frameIndex * frameSize;
-                if (byteIndex + 1 < td.pcm.length) {
-                    short sample = (short) ((td.pcm[byteIndex + 1] << 8) | (td.pcm[byteIndex] & 0xFF));
-                    float normalized = sample / 32768.0f;
-                    if (normalized < min) min = normalized;
-                    if (normalized > max) max = normalized;
-                }
+            for (int i = 0; i < samplesPerPixel; i++) {
+                int sampleIndex = startSample + i;
+                if (sampleIndex >= totalSamples) break;
+
+                float normalized = leftChannel[sampleIndex];
+
+                if (normalized < min) min = normalized;
+                if (normalized > max) max = normalized;
             }
             double yMax = mid - (max * (mid - 6));
             double yMin = mid - (min * (mid - 6));
@@ -365,6 +387,7 @@ public class EditorView implements EditorContext {
         }
     }
 
+    @Override
     public void drawEmptyBackground(Canvas canvas, String msg) {
         GraphicsContext g = canvas.getGraphicsContext2D();
         g.setFill(Color.web("#0b0f14"));
@@ -385,45 +408,6 @@ public class EditorView implements EditorContext {
         return tmp;
     }
 
-    public TrackData readWavToMemory(File wav) throws Exception {
-        try (AudioInputStream in = AudioSystem.getAudioInputStream(wav)) {
-            AudioFormat fmt = in.getFormat();
-            AudioFormat target = new AudioFormat(
-                    AudioFormat.Encoding.PCM_SIGNED, fmt.getSampleRate(), 16,
-                    fmt.getChannels(), fmt.getChannels() * 2, fmt.getSampleRate(), false);
-            try (AudioInputStream pcmStream = AudioSystem.getAudioInputStream(target, in)) {
-                byte[] data = pcmStream.readAllBytes();
-                TrackData td = new TrackData();
-                td.format = target;
-                td.pcm = data;
-                td.frameSize = target.getFrameSize();
-                td.frameRate = target.getFrameRate();
-                td.framesCount = data.length / (long) td.frameSize;
-                td.durationSec = td.framesCount > 0 && td.frameRate > 0 ? (double) td.framesCount / td.frameRate : 0.0;
-                return td;
-            }
-        }
-    }
-
-    public File writeTrackTempWav(String trackName, TrackData td) throws Exception {
-        File tmp = File.createTempFile("track-" + safe(trackName) + "-", ".wav");
-        writePcmToWavFile(td.format, td.pcm, tmp);
-        return tmp;
-    }
-
-    public File writePcmToTempWav(AudioFormat fmt, byte[] pcm) throws Exception {
-        File tmp = File.createTempFile("seg-", ".wav");
-        writePcmToWavFile(fmt, pcm, tmp);
-        return tmp;
-    }
-
-    private void writePcmToWavFile(AudioFormat fmt, byte[] pcm, File out) throws Exception {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(pcm);
-             AudioInputStream ais = new AudioInputStream(bais, fmt, pcm.length / (long) fmt.getFrameSize())) {
-            AudioSystem.write(ais, AudioFileFormat.Type.WAVE, out);
-        }
-    }
-
     private int runProcess(List<String> cmd) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
@@ -434,20 +418,17 @@ public class EditorView implements EditorContext {
         return p.waitFor();
     }
 
-    private static String safe(String s) {
-        return s.replaceAll("[^a-zA-Z0-9._-]+", "_");
+    private AudioTrack getTrack(String name) {
+        if (audioProject == null) return null;
+        return (AudioTrack) audioProject.getChildren().stream()
+                .filter(c -> c instanceof AudioTrack && c.getName().equals(name))
+                .findFirst().orElse(null);
     }
 
-    private String getActiveTrackName() {
-        if (!tracksPane.getChildren().isEmpty()) {
-            var firstNode = tracksPane.getChildren().get(0);
-            if (firstNode instanceof VBox box) {
-                if (!box.getChildren().isEmpty() && box.getChildren().get(0) instanceof Label lbl) {
-                    return lbl.getText().trim();
-                }
-            }
-        }
-        return null;
+    private AudioSegment getMainSegment(String trackName) {
+        AudioTrack track = getTrack(trackName);
+        if (track == null || track.getChildren().isEmpty()) return null;
+        return (AudioSegment) track.getChildren().get(0);
     }
 
     public void alertWarn(String m) { new Alert(Alert.AlertType.WARNING, m).showAndWait(); }
@@ -455,19 +436,55 @@ public class EditorView implements EditorContext {
     public void alertInfo(String m) { new Alert(Alert.AlertType.INFORMATION, m).showAndWait(); }
     public void toast(String m) { System.out.println("ℹ " + m); }
 
+    @Override
+    public String getActiveTrackName() {
+        return activeTrackName;
+    }
+    @Override
+    public void setActiveTrackName(String name) {
+        this.activeTrackName = name;
+        this.activeTrackCursorFrac = 0.0;
+    }
+    @Override
+    public void setActiveTrackCursor(double frac) {
+        this.activeTrackCursorFrac = frac;
+    }
+    @Override
+    public double getActiveTrackCursor() {
+        return this.activeTrackCursorFrac;
+    }
+
     @Override public long getUserId() { return userId; }
     @Override public ProjectModel getProject() { return project; }
-    @Override public void setProject(ProjectModel pm) { this.project = pm; }
+
+    @Override
+    public void setProject(ProjectModel pm) {
+        this.project = pm;
+        if (projectCache.containsKey(pm.id)) {
+            this.audioProject = projectCache.get(pm.id);
+            System.out.println("Завантажено AudioProject з кешу: " + pm.name);
+        } else {
+            System.out.println("Створюємо новий AudioProject: " + pm.name);
+            try {
+                this.audioProject = com.ivanka.audioeditor.client.model.composite.CompositeFactory.fromModel(pm);
+                projectCache.put(pm.id, this.audioProject);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                alertError("Failed to load Composite audio project.");
+            }
+        }
+    }
+
     @Override public ProjectTreeItem getRootItem() { return rootItem; }
     @Override public TreeView<String> getTree() { return tree; }
     @Override public VBox getTracksPane() { return tracksPane; }
     @Override public void setCurrentProjectNode(TreeItem<String> node) { this.currentProjectNode = node; }
     @Override public TreeItem<String> getCurrentProjectNode() { return currentProjectNode; }
     @Override public Map<Long, List<ProjectTrack>> getTrackCache() { return trackCache; }
-    @Override public Map<String, TrackData> getTrackDataMap() { return trackDataMap; }
     @Override public Map<String, Selection> getSelections() { return selections; }
-    @Override public Map<String, byte[]> getClipboard() { return clipboard; }
-    @Override public Map<String, File> getTrackTempFiles() { return trackTempFiles; }
     @Override public Stage getStage() { return stage; }
+    public AudioProject getAudioProject() {
+        return audioProject;
+    }
     public Parent getRoot() { return root; }
 }

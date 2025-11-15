@@ -26,29 +26,33 @@ public class ExportController {
     public ResponseEntity<?> exportFile(
             @RequestParam("userId") Long userId,
             @RequestParam("projectId") Long projectId,
-            @RequestParam("format") String format,  // mp3|ogg|flac|wav
+            @RequestParam("format") String format,
+            @RequestParam("trackName") String trackName,
             @RequestParam("file") MultipartFile file
     ) {
+        File uploaded = null;
         try {
-            File uploaded = storage.saveTempFile(file);
-            String base = "u" + userId + "_p" + projectId + "_" + System.currentTimeMillis();
+            uploaded = storage.saveTempFile(file);
+            String baseName = trackName.replaceAll("[^a-zA-Z0-9._() -]+", "_");
 
-            File wavForExport = uploaded.getName().toLowerCase().endsWith(".wav")
-                    ? uploaded
-                    : uploaded;
+            File exported = converter.export(uploaded, format, baseName);
 
-
-            File exported = converter.export(wavForExport, format, base);
+            String fileName = exported.getName();
+            String urlPath = "/exports/" + fileName;
 
             Map<String, Object> res = new HashMap<>();
-            res.put("fileName", exported.getName());
-            res.put("path", exported.getAbsolutePath());
+            res.put("fileName", fileName);
+            res.put("path", urlPath);
             return ResponseEntity.ok(res);
 
         } catch (Exception e) {
             Map<String, Object> err = new HashMap<>();
             err.put("error", e.getMessage());
             return ResponseEntity.internalServerError().body(err);
+        } finally {
+            if (uploaded != null) {
+                storage.deleteTempFile(uploaded);
+            }
         }
     }
 }

@@ -30,6 +30,9 @@ public class ApiClient {
         }
         return INSTANCE;
     }
+    public String getBaseUrl() {
+        return base;
+    }
 
     private HttpResponse<String> safeSend(HttpRequest req)
             throws IOException, InterruptedException {

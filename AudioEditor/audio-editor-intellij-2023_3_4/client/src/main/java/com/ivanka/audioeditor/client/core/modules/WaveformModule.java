@@ -1,15 +1,17 @@
 package com.ivanka.audioeditor.client.core.modules;
 
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
-import com.ivanka.audioeditor.client.core.events.EditorEventType;
 import com.ivanka.audioeditor.client.core.mediator.AbstractColleague;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioSegment;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
+import com.ivanka.audioeditor.client.model.composite.PcmUtils;
 import com.ivanka.audioeditor.client.ui.EditorContext;
 
+import javax.sound.sampled.AudioFormat;
 import java.io.File;
-import java.util.Arrays;
 
 import static com.ivanka.audioeditor.client.ui.EditorContext.Selection;
-import static com.ivanka.audioeditor.client.ui.EditorContext.TrackData;
 
 public class WaveformModule extends AbstractColleague {
     private final EditorContext ctx;
@@ -20,60 +22,54 @@ public class WaveformModule extends AbstractColleague {
     @Override
     public void receive(EditorEvent e) {
         switch (e.type) {
-            case AUDIO_IMPORTED -> onAudioImported(e);
+            case AUDIO_IMPORTED -> ctx.redrawTrack(e.get("trackName"));
             case WAVEFORM_REDRAW -> onWaveformFx(e);
             default -> {}
         }
-    }
-
-    private void onAudioImported(EditorEvent e) {
-        String trackName = e.get("trackName");
-        TrackData td = e.get("trackData");
-        ctx.getTrackDataMap().put(trackName, td);
-        try {
-            File tmp = ctx.writeTrackTempWav(trackName, td);
-            ctx.getTrackTempFiles().put(trackName, tmp);
-        } catch (Exception ex) { ex.printStackTrace(); }
-        ctx.redrawTrack(trackName);
     }
 
     private void onWaveformFx(EditorEvent e) {
         String trackName = e.get("trackName");
         String fx = e.get("fx");
 
-        var td = ctx.getTrackDataMap().get(trackName);
-        if (td == null) return;
+        AudioSegment mainSegment = getMainSegment(trackName);
+        if (mainSegment == null) {
+            ctx.alertWarn("No audio segment found for this track.");
+            return;
+        }
 
         var sel = ctx.getSelections().get(trackName);
         if (sel == null || !sel.isActive()) return;
 
         try {
-            int[] range = selectionToByteRange(sel, td, 900);
+            int[] range = selectionToSampleRange(sel, mainSegment, 900);
+            float[][] samples = mainSegment.getSamples();
+
+            float[][] newSamples = null;
+
             if ("reverse".equals(fx)) {
-                reverseInPlaceByFrames(td.pcm, range[0], range[1], td.frameSize);
+                newSamples = PcmUtils.reverse(samples, range[0], range[1]);
+
             } else if (fx != null && fx.startsWith("atempo:")) {
                 double k = Double.parseDouble(fx.substring("atempo:".length()));
-                File inWav = ctx.writePcmToTempWav(td.format, Arrays.copyOfRange(td.pcm, range[0], range[1]));
-                File outWav = java.io.File.createTempFile("seg-tempo-", ".wav");
+                float[][] slice = PcmUtils.slice(samples, range[0], range[1]);
+                File inWav = File.createTempFile("seg-tempo-in-", ".wav");
+                PcmUtils.writeWav(slice, mainSegment.getFormat(), inWav);
+                File outWav = java.io.File.createTempFile("seg-tempo-out-", ".wav");
                 var cmd = java.util.List.of("ffmpeg", "-y", "-i", inWav.getAbsolutePath(),
                         "-filter:a", "atempo=" + k, outWav.getAbsolutePath());
                 int code = runProcess(cmd);
                 if (code != 0) throw new RuntimeException("ffmpeg atempo failed: exit " + code);
-                TrackData segNew = ctx.readWavToMemory(outWav);
-                byte[] left = java.util.Arrays.copyOfRange(td.pcm, 0, range[0]);
-                byte[] right = java.util.Arrays.copyOfRange(td.pcm, range[1], td.pcm.length);
-                td.pcm = concat(left, segNew.pcm, right);
+
+                AudioFormat[] fmt = new AudioFormat[1];
+                float[][] newSlice = PcmUtils.readWavStereo(outWav, fmt);
+                newSamples = PcmUtils.splice(samples, newSlice, range[0], range[1]);
+                inWav.delete();
+                outWav.delete();
             }
 
-            td.framesCount = td.pcm.length / td.frameSize;
-            td.durationSec = td.frameRate > 0 ? td.framesCount / td.frameRate : 0.0;
-
-            try {
-                File newTmp = ctx.writeTrackTempWav(trackName, td);
-                ctx.getTrackTempFiles().put(trackName, newTmp);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                ctx.alertError("Failed to update temp WAV: " + ex.getMessage());
+            if (newSamples != null) {
+                mainSegment.setSamples(newSamples);
             }
 
             ctx.redrawTrack(trackName);
@@ -83,47 +79,32 @@ public class WaveformModule extends AbstractColleague {
             ctx.alertError("Waveform effect failed: " + ex.getMessage());
         }
     }
+    private AudioTrack getTrack(String name) {
+        AudioProject project = ctx.getAudioProject();
+        if (project == null) return null;
+        return (AudioTrack) project.getChildren().stream()
+                .filter(c -> c instanceof AudioTrack && c.getName().equals(name))
+                .findFirst().orElse(null);
+    }
 
-    private int[] selectionToByteRange(Selection sel, EditorContext.TrackData td, double canvasWidth) {
+    private AudioSegment getMainSegment(String trackName) {
+        AudioTrack track = getTrack(trackName);
+        if (track == null || track.getChildren().isEmpty()) return null;
+        return (AudioSegment) track.getChildren().get(0);
+    }
+
+    private int[] selectionToSampleRange(Selection sel, AudioSegment seg, double canvasWidth) {
         double L = Math.max(0, Math.min(sel.left(), canvasWidth));
         double R = Math.max(0, Math.min(sel.right(), canvasWidth));
         double fracL = L / canvasWidth;
         double fracR = R / canvasWidth;
 
-        int start = (int) Math.floor(td.pcm.length * fracL);
-        int end = (int) Math.ceil(td.pcm.length * fracR);
-
-        start = (start / td.frameSize) * td.frameSize;
-        end = (end / td.frameSize) * td.frameSize;
-        end = Math.min(end, td.pcm.length);
-        if (end <= start) end = Math.min(start + td.frameSize, td.pcm.length);
+        int totalSamples = seg.getSamples()[0].length;
+        int start = (int) Math.floor(totalSamples * fracL);
+        int end   = (int) Math.ceil (totalSamples * fracR);
+        end = Math.min(end, totalSamples);
+        if (end <= start) end = Math.min(start + 1, totalSamples);
         return new int[]{start, end};
-    }
-
-    private void reverseInPlaceByFrames(byte[] arr, int from, int to, int frameSize) {
-        int l = from;
-        int r = to - frameSize;
-        while (l < r) {
-            for (int i = 0; i < frameSize; i++) {
-                byte tmp = arr[l + i];
-                arr[l + i] = arr[r + i];
-                arr[r + i] = tmp;
-            }
-            l += frameSize;
-            r -= frameSize;
-        }
-    }
-
-    private static byte[] concat(byte[]... parts) {
-        int len = 0;
-        for (byte[] p : parts) len += p.length;
-        byte[] out = new byte[len];
-        int pos = 0;
-        for (byte[] p : parts) {
-            System.arraycopy(p, 0, out, pos, p.length);
-            pos += p.length;
-        }
-        return out;
     }
 
     private int runProcess(java.util.List<String> cmd) throws java.io.IOException, InterruptedException {

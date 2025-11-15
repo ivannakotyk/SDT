@@ -4,4 +4,5 @@ import java.io.File;
 
 public interface IAudioFormatAdapter {
     File convert(File inputFile, String targetFormat) throws Exception;
+    boolean supports(String format);
 }

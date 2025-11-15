@@ -9,12 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
-public class FFmpegAdapter implements IAudioFormatAdapter {
+public class FFmpegAdapter {
 
     @Value("${ffmpeg.path:ffmpeg}")
     private String ffmpegPath;
 
-    @Override
     public File convert(File inputFile, String targetFormat) throws Exception {
         String baseName = inputFile.getName().replaceAll("\\.[^.]+$", "");
         File out = File.createTempFile(baseName + "-", "." + targetFormat);

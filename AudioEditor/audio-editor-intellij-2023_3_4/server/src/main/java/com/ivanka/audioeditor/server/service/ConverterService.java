@@ -1,29 +1,44 @@
 package com.ivanka.audioeditor.server.service;
 
 import com.ivanka.audioeditor.server.service.adapter.IAudioFormatAdapter;
-import com.ivanka.audioeditor.server.service.adapter.FFmpegAdapter;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.util.List;
 
 @Service
 public class ConverterService {
-
-    private final IAudioFormatAdapter adapter;
+    private final List<IAudioFormatAdapter> adapters;
     private final FileStorageService storage;
-
     public ConverterService(
-            @Qualifier("FFmpegAdapter") IAudioFormatAdapter adapter,
+            List<IAudioFormatAdapter> adapters,
             FileStorageService storage
     ) {
-        this.adapter = adapter;
+        this.adapters = adapters;
         this.storage = storage;
     }
 
     public File export(File wavFile, String targetFormat, String exportBaseName) throws Exception {
-        File converted = adapter.convert(wavFile, targetFormat);
-        String finalName = exportBaseName + "." + targetFormat.toLowerCase();
-        return storage.saveExportedFile(converted, finalName);
+        File converted = null;
+        try {
+            converted = findAdapterAndConvert(wavFile, targetFormat);
+
+            String finalName = exportBaseName + "." + targetFormat.toLowerCase();
+            return storage.saveExportedFile(converted, finalName);
+
+        } finally {
+            if (converted != null) {
+                storage.deleteTempFile(converted);
+            }
+        }
+    }
+
+    private File findAdapterAndConvert(File inputFile, String format) throws Exception {
+        for (IAudioFormatAdapter adapter : adapters) {
+            if (adapter.supports(format)) {
+                return adapter.convert(inputFile, format);
+            }
+        }
+        throw new UnsupportedOperationException("Format not supported: " + format);
     }
 }

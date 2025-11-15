@@ -5,14 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.core.events.EditorEventType;
 import com.ivanka.audioeditor.client.core.mediator.AbstractColleague;
+import com.ivanka.audioeditor.client.model.composite.AudioComponent;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
 import com.ivanka.audioeditor.client.net.ApiClient;
 import com.ivanka.audioeditor.client.ui.EditorContext;
-import com.ivanka.audioeditor.client.ui.tree.ProjectTreeItem;
 import javafx.scene.control.ChoiceDialog;
-
+import javafx.scene.control.TextInputDialog;
+import java.net.URI;
 import java.io.File;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class ExportModule extends AbstractColleague {
 
@@ -32,124 +34,125 @@ public class ExportModule extends AbstractColleague {
     @Override
     public void receive(EditorEvent e) {
         if (e.type == EditorEventType.EXPORT_REQUEST) {
-            onExport(e);
+            onExport();
         }
     }
 
-    private void onExport(EditorEvent e) {
+    private void onExport() {
+        AudioProject project = ctx.getAudioProject();
+        if (project == null) {
+            ctx.alertWarn("No active project to export! Please open a project first.");
+            return;
+        }
+        List<String> exportChoices = new ArrayList<>();
+        String mixOption = "Entire Project (Mixed)";
+        exportChoices.add(mixOption);
+        List<String> trackNames = project.getChildren().stream()
+                .map(AudioComponent::getName)
+                .toList();
+        exportChoices.addAll(trackNames);
+
+        ChoiceDialog<String> exportDlg = new ChoiceDialog<>(exportChoices.get(0), exportChoices);
+        exportDlg.setHeaderText("Select what to export");
+        exportDlg.setContentText("Export:");
+        Optional<String> exportSel = exportDlg.showAndWait();
+        if (exportSel.isEmpty()) return;
+
+        String selectedChoice = exportSel.get();
+        ChoiceDialog<String> fmtDlg = new ChoiceDialog<>("mp3", List.of("mp3", "ogg", "flac", "wav"));
+        fmtDlg.setHeaderText("Select export format");
+        fmtDlg.setContentText("Format:");
+        Optional<String> fmtSel = fmtDlg.showAndWait();
+        if (fmtSel.isEmpty()) return;
+        String format = fmtSel.get();
+        String defaultName;
+        if (selectedChoice.equals(mixOption)) {
+            defaultName = project.getName() + " (Mix)";
+        } else {
+            defaultName = selectedChoice;
+        }
+
+        TextInputDialog nameDlg = new TextInputDialog(defaultName);
+        nameDlg.setHeaderText("Enter file name (without extension)");
+        nameDlg.setContentText("Name:");
+        Optional<String> nameSel = nameDlg.showAndWait();
+        if (nameSel.isEmpty() || nameSel.get().isBlank()) return;
+
+        String exportName = nameSel.get().trim();
+
+        File wavToSend = null;
         try {
-            List<ProjectTreeItem> projects = ctx.getRootItem().getChildren().stream()
-                    .filter(item -> item instanceof ProjectTreeItem)
-                    .map(item -> (ProjectTreeItem) item)
-                    .collect(Collectors.toList());
-
-            if (projects.isEmpty()) {
-                ctx.alertWarn("No projects available to export!");
-                return;
+            if (selectedChoice.equals(mixOption)) {
+                wavToSend = File.createTempFile("proj-mix-", ".wav");
+                ctx.toast("Mixing project... Please wait.");
+                project.exportTo(wavToSend, "wav");
+            } else {
+                AudioTrack selectedTrack = (AudioTrack) project.getChildren().stream()
+                        .filter(c -> c.getName().equals(selectedChoice))
+                        .findFirst()
+                        .orElse(null);
+                if (selectedTrack == null) {
+                    ctx.alertError("Internal error: Could not find selected track");
+                    return;
+                }
+                wavToSend = File.createTempFile("track-export-", ".wav");
+                ctx.toast("Exporting track... Please wait.");
+                selectedTrack.exportTo(wavToSend, "wav");
             }
 
-            List<String> projectNames = projects.stream()
-                    .map(ProjectTreeItem::getValue)
-                    .toList();
+            ctx.toast("Uploading to server for conversion...");
+            String response = api.postMultipart("/export", Map.of(
+                    "userId", String.valueOf(ctx.getUserId()),
+                    "projectId", String.valueOf(ctx.getProject().id),
+                    "trackName", exportName,
+                    "format", format
+            ), wavToSend);
 
-            ChoiceDialog<String> projDlg = new ChoiceDialog<>(projectNames.get(0), projectNames);
-            projDlg.setHeaderText("Select project for export");
-            projDlg.setContentText("Project:");
-            Optional<String> projSel = projDlg.showAndWait();
-            if (projSel.isEmpty()) return;
+            Map<String, Object> res = mapper.readValue(response, new TypeReference<>() {});
+            String path = String.valueOf(res.get("path"));
 
-            String selectedProjectName = projSel.get();
-            ProjectTreeItem selectedItem = projects.stream()
-                    .filter(p -> p.getValue().equals(selectedProjectName))
-                    .findFirst()
-                    .orElse(null);
-            if (selectedItem == null) {
-                ctx.alertError("Project not found in tree!");
-                return;
-            }
-            long selectedProjectId = selectedItem.getProjectId();
+            ctx.alertInfo("Exported successfully!\nItem: " + exportName +
+                    "\nFormat: " + format +
+                    "\nFile is downloading...");
 
-            Map<String, File> trackFiles = ctx.getTrackTempFiles();
-            List<String> allTracks = trackFiles.entrySet().stream()
-                    .filter(e2 -> e2.getKey().startsWith(selectedProjectId + ":"))
-                    .map(e2 -> e2.getKey().substring((selectedProjectId + ":").length()))
-                    .toList();
+            openExportedFile(path);
 
-            if (allTracks.isEmpty()) {
-                ctx.alertWarn("No audio tracks imported in this project!");
-                return;
-            }
-
-            ChoiceDialog<String> trackDlg = new ChoiceDialog<>(allTracks.get(0), allTracks);
-            trackDlg.setHeaderText("Select track to export");
-            trackDlg.setContentText("Track:");
-            Optional<String> trackSel = trackDlg.showAndWait();
-            if (trackSel.isEmpty()) return;
-
-            String selectedTrack = trackSel.get();
-            String key = selectedProjectId + ":" + selectedTrack;
-            File wavIn = trackFiles.get(key);
-
-            if (wavIn == null || !wavIn.exists()) {
-                ctx.alertError("Selected track has no audio file!");
-                return;
-            }
-
-            ChoiceDialog<String> fmtDlg = new ChoiceDialog<>("mp3", List.of("mp3", "ogg", "flac", "wav"));
-            fmtDlg.setHeaderText("Select export format");
-            fmtDlg.setContentText("Format:");
-            Optional<String> fmtSel = fmtDlg.showAndWait();
-            if (fmtSel.isEmpty()) return;
-            String format = fmtSel.get();
-
-            try {
-                String response = api.postMultipart("/export", Map.of(
-                        "userId", String.valueOf(ctx.getUserId()),
-                        "projectId", String.valueOf(selectedProjectId),
-                        "trackName", selectedTrack,
-                        "format", format
-                ), wavIn);
-
-                Map<String, Object> res = mapper.readValue(response, new TypeReference<>() {});
-                String path = String.valueOf(res.get("path"));
-
-                ctx.alertInfo("Exported successfully!\nProject: " + selectedProjectName +
-                        "\nTrack: " + selectedTrack + "\nFormat: " + format +
-                        "\nSaved on server:\n" + path);
-
-                openExportedFile(path);
-
-                // Callback
-                send(new EditorEvent(EditorEventType.EXPORT_FINISHED)
-                        .with("ok", true)
-                        .with("path", path));
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                ctx.alertError("Export failed: " + ex.getMessage());
-
-                send(new EditorEvent(EditorEventType.EXPORT_FINISHED)
-                        .with("ok", false)
-                        .with("message", ex.getMessage()));
-            }
+            send(new EditorEvent(EditorEventType.EXPORT_FINISHED)
+                    .with("ok", true)
+                    .with("path", path));
 
         } catch (Exception ex) {
             ex.printStackTrace();
-            ctx.alertError("Unexpected export error: " + ex.getMessage());
+            ctx.alertError("Export failed: " + ex.getMessage());
+            send(new EditorEvent(EditorEventType.EXPORT_FINISHED)
+                    .with("ok", false)
+                    .with("message", ex.getMessage()));
+        } finally {
+            if (wavToSend != null) {
+                if (!wavToSend.delete()) {
+                    System.err.println("Warning: Failed to delete temp file: " + wavToSend.getAbsolutePath());
+                }
+            }
         }
     }
-
     private void openExportedFile(String path) {
         try {
-            File exportedFile = new File(path);
-            if (exportedFile.exists()) {
-                java.awt.Desktop.getDesktop().open(exportedFile);
-            } else {
-                File exportDir = new File("server/storage/exports");
-                if (exportDir.exists()) java.awt.Desktop.getDesktop().open(exportDir);
-            }
+            String baseUrl = ApiClient.getInstance().getBaseUrl();
+            String webRoot = baseUrl.replace("/api", "");
+            URI baseUri = new URI(webRoot);
+            URI finalUri = new URI(
+                    baseUri.getScheme(),
+                    baseUri.getAuthority(),
+                    path,
+                    null,
+                    null
+            );
+            java.awt.Desktop.getDesktop().browse(finalUri);
+
         } catch (Exception openEx) {
-            System.err.println("Could not open exported file: " + openEx.getMessage());
+            System.err.println("Could not open exported file in browser: " + openEx.getMessage());
+            ctx.alertError("Failed to open download link in browser." +
+                    "\nManual link: " + ApiClient.getInstance().getBaseUrl().replace("/api", "") + path);
         }
     }
 }

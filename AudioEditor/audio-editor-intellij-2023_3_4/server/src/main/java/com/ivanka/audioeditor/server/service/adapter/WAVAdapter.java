@@ -17,4 +17,9 @@ public class WAVAdapter implements IAudioFormatAdapter {
         System.out.println("Використовується WAVAdapter → FFmpeg");
         return ffmpegAdapter.convert(inputFile, "wav");
     }
+
+    @Override
+    public boolean supports(String format) {
+        return "wav".equalsIgnoreCase(format);
+    }
 }

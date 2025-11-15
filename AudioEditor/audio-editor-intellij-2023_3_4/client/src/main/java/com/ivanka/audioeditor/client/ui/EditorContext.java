@@ -2,62 +2,44 @@ package com.ivanka.audioeditor.client.ui;
 
 import com.ivanka.audioeditor.client.model.ProjectModel;
 import com.ivanka.audioeditor.client.model.ProjectTrack;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import javax.sound.sampled.AudioFormat;
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 
 public interface EditorContext {
-    // Стан
     long getUserId();
     ProjectModel getProject();
     void setProject(ProjectModel pm);
+    AudioProject getAudioProject();
 
-    // UI вузли
+
     TreeItem<String> getRootItem();
     TreeView<String> getTree();
     VBox getTracksPane();
     void setCurrentProjectNode(TreeItem<String> node);
     TreeItem<String> getCurrentProjectNode();
+    Stage getStage();
+    String getActiveTrackName();
+    void setActiveTrackName(String name);
 
-    // Кеш/мапи
     Map<Long, List<ProjectTrack>> getTrackCache();
-    Map<String, TrackData> getTrackDataMap();
     Map<String, Selection> getSelections();
-    Map<String, byte[]> getClipboard();
-    Map<String, File> getTrackTempFiles();
+    void setActiveTrackCursor(double frac);
+    double getActiveTrackCursor();
 
-    // Малювання / утиліти
-    void drawWaveform(Canvas c, TrackData td, Selection sel);
+    void drawWaveform(Canvas c, String trackName);
     void drawEmptyBackground(Canvas c, String msg);
     void redrawTrack(String trackName);
     void toast(String msg);
     void alertInfo(String msg);
     void alertWarn(String msg);
     void alertError(String msg);
-
-    // IO
-    TrackData readWavToMemory(File wav) throws Exception;
-    File ensureWav(File any) throws Exception;
-    File writeTrackTempWav(String trackName, TrackData td) throws Exception;
-    File writePcmToTempWav(AudioFormat fmt, byte[] pcm) throws Exception;
-    Stage getStage();
-
-    class TrackData {
-        public AudioFormat format;
-        public byte[] pcm;
-        public int frameSize;
-        public float frameRate;
-        public long framesCount;
-        public double durationSec;
-    }
-
     class Selection {
         public double xStart = -1;
         public double xEnd = -1;

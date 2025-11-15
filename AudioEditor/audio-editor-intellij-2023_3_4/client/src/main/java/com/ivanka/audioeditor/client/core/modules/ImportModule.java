@@ -4,19 +4,22 @@ import com.ivanka.audioeditor.client.core.AudioEditor;
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.core.events.EditorEventType;
 import com.ivanka.audioeditor.client.core.mediator.AbstractColleague;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioSegment;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
+import com.ivanka.audioeditor.client.model.composite.PcmUtils;
 import com.ivanka.audioeditor.client.ui.EditorContext;
+import com.ivanka.audioeditor.client.ui.EditorView;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import javax.sound.sampled.AudioFormat;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.ivanka.audioeditor.client.ui.EditorContext.TrackData;
-
 public class ImportModule extends AbstractColleague {
 
     private final EditorContext ctx;
@@ -59,29 +62,44 @@ public class ImportModule extends AbstractColleague {
             ChoiceDialog<String> dialog = new ChoiceDialog<>(trackNames.get(0), trackNames);
             dialog.setHeaderText("Оберіть трек для імпорту аудіо");
             dialog.setContentText("Трек:");
-            dialog.showAndWait().ifPresent(trackName -> {
+
+            final String trackName = dialog.showAndWait().orElse(null);
+            if (trackName == null) return;
+            ctx.toast("Importing file: " + f.getName() + "...");
+            new Thread(() -> {
                 try {
-                    File wav = ctx.ensureWav(f);
-                    TrackData td = ctx.readWavToMemory(wav);
+                    File wav = ((EditorView) ctx).ensureWav(f);
 
-                    long projectId = ctx.getProject().id;
-                    String key = projectId + ":" + trackName.trim();
+                    AudioFormat[] fmt = new AudioFormat[1];
+                    float[][] stereoSamples = PcmUtils.readWavStereo(wav, fmt);
+                    AudioFormat format = fmt[0];
 
-                    ctx.getTrackTempFiles().put(key, wav);
-                    ctx.getTrackDataMap().put(key, td);
+                    AudioProject project = ctx.getAudioProject();
+                    AudioTrack track = (AudioTrack) project.getChildren().stream()
+                            .filter(c -> c instanceof AudioTrack && c.getName().equals(trackName))
+                            .findFirst()
+                            .orElse(null);
 
+                    if (track == null) {
+                        track = new AudioTrack(trackName);
+                        project.add(track);
+                    }
+
+                    AudioSegment segment = new AudioSegment(f.getName(), stereoSamples, format);
+                    track.add(segment);
+
+                    ctx.toast("Import complete: " + f.getName());
                     AudioEditor.getInstance().notifyObservers(
                             new EditorEvent(EditorEventType.AUDIO_IMPORTED)
                                     .with("trackName", trackName)
-                                    .with("trackData", td)
-                                    .with("projectId", projectId)
+                                    .with("projectId", ctx.getProject().id)
                     );
 
                 } catch (Exception ex) {
                     ex.printStackTrace();
                     ctx.alertError("Помилка імпорту: " + ex.getMessage());
                 }
-            });
+            }).start();
 
         } catch (Exception ex) {
             ex.printStackTrace();

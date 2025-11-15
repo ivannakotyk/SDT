@@ -7,6 +7,9 @@ import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.core.events.EditorEventType;
 import com.ivanka.audioeditor.client.core.mediator.AbstractColleague;
 import com.ivanka.audioeditor.client.model.ProjectTrack;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioSegment;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
 import com.ivanka.audioeditor.client.net.ApiClient;
 import com.ivanka.audioeditor.client.ui.EditorContext;
 import javafx.application.Platform;
@@ -29,26 +32,26 @@ public class TrackModule extends AbstractColleague {
     private final ObjectMapper mapper = new ObjectMapper();
 
     private final Map<String, Canvas> canvases = new HashMap<>();
-    private final Map<String, Slider> cursors  = new HashMap<>();
+    private final Map<String, Slider> cursors = new HashMap<>();
     private static final double CANVAS_W = 900;
     private static final double CANVAS_H = 160;
 
     public TrackModule(EditorContext ctx) { this.ctx = ctx; }
 
     @Override public String key() { return "Track"; }
+    public Map<String, Slider> getCursors() {
+        return cursors;
+    }
 
     @Override
     public void receive(EditorEvent e) {
         try {
             switch (e.type) {
-                case TRACK_ADD_REQUEST      -> onAddTrack(e);
+                case TRACK_ADD_REQUEST -> onAddTrack(e);
                 case TRACKS_REFRESH_REQUEST -> onRefreshTracks(e);
-                case AUDIO_IMPORTED         -> onAudioImported(e);
-
-                case PLAYBACK_PROGRESS      -> onPlaybackProgress(e);
-                case PLAYBACK_FINISHED      -> onPlaybackFinished(e);
-
-
+                case AUDIO_IMPORTED -> onAudioImported(e);
+                case PLAYBACK_PROGRESS -> onPlaybackProgress(e);
+                case PLAYBACK_FINISHED -> onPlaybackFinished(e);
                 default -> {}
             }
         } catch (Exception ex) {
@@ -57,8 +60,12 @@ public class TrackModule extends AbstractColleague {
     }
 
     private void onAddTrack(EditorEvent e) throws Exception {
-        long pid   = e.get("projectId");
+        long pid = e.get("projectId");
         String name = e.get("trackName");
+        AudioProject project = ctx.getAudioProject();
+        if (project != null && project.getChildren().stream().noneMatch(c -> c.getName().equals(name))) {
+            project.add(new AudioTrack(name));
+        }
         String url = "/projects/" + pid + "/tracks?name=" + URLEncoder.encode(name, StandardCharsets.UTF_8);
         api.postJson(url, Map.of());
         send(new EditorEvent(EditorEventType.TRACKS_REFRESH_REQUEST).with("projectNode", ctx.getCurrentProjectNode()));
@@ -68,16 +75,13 @@ public class TrackModule extends AbstractColleague {
         TreeItem<String> node = e.get("projectNode");
         if (node == null) return;
         long pid = ctx.getProject().id;
-
         String resp = api.get("/projects/" + pid + "/tracks");
         List<ProjectTrack> list = mapper.readValue(resp, new TypeReference<>() {});
         ctx.getTrackCache().put(pid, list);
-
         Platform.runLater(() -> {
             ctx.getTracksPane().getChildren().clear();
             canvases.clear();
             cursors.clear();
-
             for (ProjectTrack t : list) {
                 ctx.getTracksPane().getChildren().add(buildTrackBox(t.getTrackName()));
             }
@@ -87,31 +91,26 @@ public class TrackModule extends AbstractColleague {
         });
     }
 
+
     private void onAudioImported(EditorEvent e) {
         String trackName = e.get("trackName");
         Platform.runLater(() -> {
-            Canvas cv = canvases.get(trackName);
-            if (cv != null) {
-                ctx.redrawTrack(trackName);
-                drawCursorLine(trackName);
-            }
+            ctx.redrawTrack(trackName);
+            drawCursorLine(trackName);
         });
     }
+
     private VBox buildTrackBox(String trackName) {
         VBox box = new VBox(6);
         box.setPadding(new Insets(6));
-
         Label title = new Label(trackName);
         title.setTextFill(Color.WHITE);
-
+        title.setOnMouseClicked(ev -> ctx.setActiveTrackName(trackName));
         Canvas canvas = new Canvas(CANVAS_W, CANVAS_H);
         canvases.put(trackName, canvas);
         setupMouseSelectionAndCursor(trackName, canvas);
-
-        var td = ctx.getTrackDataMap().get(trackName);
-        if (td == null) ctx.drawEmptyBackground(canvas, "No audio data. Import a file to this track.");
-        else { ctx.redrawTrack(trackName); drawCursorLine(trackName); }
-
+        ctx.redrawTrack(trackName);
+        drawCursorLine(trackName);
         HBox controls = buildControlBar(trackName);
         box.getChildren().addAll(title, canvas, controls);
         return box;
@@ -119,10 +118,11 @@ public class TrackModule extends AbstractColleague {
 
     private void setupMouseSelectionAndCursor(String trackName, Canvas canvas) {
         canvas.setOnMousePressed(ev -> {
+            ctx.setActiveTrackName(trackName);
             var sel = ctx.getSelections().computeIfAbsent(trackName, k -> new EditorContext.Selection());
             double x = clamp(ev.getX(), 0, canvas.getWidth());
             sel.xStart = x;
-            sel.xEnd   = x;
+            sel.xEnd = x;
             ctx.redrawTrack(trackName);
             drawCursorLine(trackName);
         });
@@ -142,7 +142,9 @@ public class TrackModule extends AbstractColleague {
                 if (w < 3.0) {
                     sel.clear();
                     Slider sl = cursors.get(trackName);
-                    if (sl != null) sl.setValue(ev.getX() / canvas.getWidth());
+                    double frac = clamp(ev.getX() / canvas.getWidth(), 0, 1);
+                    if (sl != null) sl.setValue(frac);
+                    ctx.setActiveTrackCursor(frac);
                 }
                 ctx.redrawTrack(trackName);
                 drawCursorLine(trackName);
@@ -150,13 +152,16 @@ public class TrackModule extends AbstractColleague {
         });
 
         canvas.setOnMouseClicked(ev -> {
+            ctx.setActiveTrackName(trackName);
             if (ev.isControlDown()) {
                 double frac = clamp(ev.getX() / canvas.getWidth(), 0, 1);
                 Slider sl = cursors.get(trackName);
                 if (sl != null) sl.setValue(frac);
-                var td = ctx.getTrackDataMap().get(trackName);
-                if (td != null && td.durationSec > 0) {
-                    double sec = frac * td.durationSec;
+                ctx.setActiveTrackCursor(frac);
+
+                AudioSegment seg = getMainSegment(trackName);
+                if (seg != null && seg.getDurationSec() > 0) {
+                    double sec = frac * seg.getDurationSec();
                     AudioEditor.getInstance().notifyObservers(
                             new EditorEvent(EditorEventType.PLAYBACK_START)
                                     .with("trackName", trackName)
@@ -168,16 +173,17 @@ public class TrackModule extends AbstractColleague {
         });
     }
 
+
     private HBox buildControlBar(String trackName) {
         HBox bar = new HBox(8);
         bar.setPadding(new Insets(4, 0, 0, 0));
 
-        Button btnPlay   = new Button("Play");
-        Button btnStop   = new Button("Stop");
-        Button btnCopy   = new Button("Copy");
-        Button btnCut    = new Button("Cut");
-        Button btnPaste  = new Button("Paste");
-        Button btnRev    = new Button("Reverse");
+        Button btnPlay = new Button("Play");
+        Button btnStop = new Button("Stop");
+        Button btnCopy = new Button("Copy");
+        Button btnCut = new Button("Cut");
+        Button btnPaste = new Button("Paste");
+        Button btnRev = new Button("Reverse");
 
         ChoiceBox<String> speed = new ChoiceBox<>();
         speed.getItems().addAll("0.5x","1x","1.5x","2x");
@@ -191,10 +197,15 @@ public class TrackModule extends AbstractColleague {
         timeLabel.setTextFill(Color.web("#cbd5e1"));
 
         btnPlay.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
             var editor = AudioEditor.getInstance();
-            var td = ctx.getTrackDataMap().get(trackName);
-            if (td == null || td.durationSec <= 0) { ctx.alertWarn("Import audio to this track first."); return; }
-            double sec = cursor.getValue() * td.durationSec;
+            AudioSegment seg = getMainSegment(trackName);
+            if (seg == null || seg.getDurationSec() <= 0) { ctx.alertWarn("Import audio to this track first."); return; }
+
+            double frac = cursor.getValue();
+            ctx.setActiveTrackCursor(frac);
+            double sec = frac * seg.getDurationSec();
+
             editor.notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_START)
                     .with("trackName", trackName)
                     .with("startAtSec", sec));
@@ -206,9 +217,14 @@ public class TrackModule extends AbstractColleague {
         );
 
         cursor.setOnMouseReleased(ev -> {
-            var td = ctx.getTrackDataMap().get(trackName);
-            if (td == null || td.durationSec <= 0) return;
-            double sec = cursor.getValue() * td.durationSec;
+            ctx.setActiveTrackName(trackName);
+            AudioSegment seg = getMainSegment(trackName);
+            if (seg == null || seg.getDurationSec() <= 0) return;
+
+            double frac = cursor.getValue();
+            ctx.setActiveTrackCursor(frac);
+            double sec = frac * seg.getDurationSec();
+
             AudioEditor.getInstance().notifyObservers(
                     new EditorEvent(EditorEventType.PLAYBACK_START)
                             .with("trackName", trackName)
@@ -216,21 +232,25 @@ public class TrackModule extends AbstractColleague {
             );
         });
 
-        btnCopy.setOnAction(ev -> AudioEditor.getInstance().notifyObservers(
-                new EditorEvent(EditorEventType.CLIPBOARD_COPY).with("trackName", trackName)));
-        btnCut.setOnAction(ev -> AudioEditor.getInstance().notifyObservers(
-                new EditorEvent(EditorEventType.CLIPBOARD_CUT).with("trackName", trackName)));
-        btnPaste.setOnAction(ev -> AudioEditor.getInstance().notifyObservers(
-                new EditorEvent(EditorEventType.CLIPBOARD_PASTE)
-                        .with("trackName", trackName)
-                        .with("cursorFrac",
-                                Optional.ofNullable(cursors.get(trackName)).map(Slider::getValue).orElse(0.0))));
-        btnRev.setOnAction(ev -> AudioEditor.getInstance().notifyObservers(
-                new EditorEvent(EditorEventType.WAVEFORM_REDRAW)
-                        .with("trackName", trackName)
-                        .with("fx", "reverse")));
-
+        btnCopy.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_COPY).with("trackName", trackName));
+        });
+        btnCut.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_CUT).with("trackName", trackName));
+        });
+        btnRev.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.WAVEFORM_REDRAW)
+                            .with("trackName", trackName)
+                            .with("fx", "reverse"));
+        });
         speed.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
             String v = speed.getValue();
             double k = Double.parseDouble(v.replace("x",""));
             AudioEditor.getInstance().notifyObservers(
@@ -239,9 +259,26 @@ public class TrackModule extends AbstractColleague {
                             .with("fx", "atempo:" + k));
         });
 
+        btnPaste.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+
+            double frac = Optional.ofNullable(cursors.get(trackName))
+                    .map(Slider::getValue)
+                    .orElse(0.0);
+            ctx.setActiveTrackCursor(frac);
+
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_PASTE)
+                            .with("trackName", trackName)
+                            .with("cursorFrac", ctx.getActiveTrackCursor()));
+        });
+
         cursor.valueProperty().addListener((obs, o, n) -> {
-            var td = ctx.getTrackDataMap().get(trackName);
-            double posSec = (td == null ? 0.0 : n.doubleValue() * td.durationSec);
+            if (trackName.equals(ctx.getActiveTrackName())) {
+                ctx.setActiveTrackCursor(n.doubleValue());
+            }
+            AudioSegment seg = getMainSegment(trackName);
+            double posSec = (seg == null ? 0.0 : n.doubleValue() * seg.getDurationSec());
             timeLabel.setText(formatTime(posSec));
             drawCursorLine(trackName);
         });
@@ -260,6 +297,8 @@ public class TrackModule extends AbstractColleague {
         Double fracObj = e.get("fraction");
         if (trackName == null || fracObj == null) return;
 
+        if (!trackName.equals(ctx.getActiveTrackName())) return;
+
         Slider sl = cursors.get(trackName);
         if (sl == null) return;
 
@@ -267,23 +306,26 @@ public class TrackModule extends AbstractColleague {
 
         Platform.runLater(() -> {
             sl.setValue(frac);
+            ctx.setActiveTrackCursor(frac);
         });
     }
 
     private void onPlaybackFinished(EditorEvent e) {
         String trackName = e.get("trackName");
         if (trackName == null) return;
+        if (!trackName.equals(ctx.getActiveTrackName())) return;
 
         Slider sl = cursors.get(trackName);
         if (sl == null) return;
 
         Platform.runLater(() -> {
             sl.setValue(1.0);
+            ctx.setActiveTrackCursor(1.0);
         });
     }
 
     private String formatTime(double sec) {
-        long ms   = (long) Math.round(Math.max(0, sec) * 1000.0);
+        long ms = (long) Math.round(Math.max(0, sec) * 1000.0);
         long mins = ms / 60000;
         long secs = (ms % 60000) / 1000;
         long msec = ms % 1000;
@@ -293,10 +335,12 @@ public class TrackModule extends AbstractColleague {
     private void drawCursorLine(String trackName) {
         Canvas cv = canvases.get(trackName);
         if (cv == null) return;
-        var td = ctx.getTrackDataMap().get(trackName);
-        if (td == null || td.durationSec <= 0) {
 
-            ctx.drawWaveform(cv, td, ctx.getSelections().computeIfAbsent(trackName, k -> new EditorContext.Selection()));
+        AudioSegment seg = getMainSegment(trackName);
+
+        ctx.drawWaveform(cv, trackName);
+
+        if (seg == null || seg.getDurationSec() <= 0) {
             GraphicsContext g = cv.getGraphicsContext2D();
             g.setStroke(Color.WHITE);
             g.setLineWidth(1.0);
@@ -307,7 +351,6 @@ public class TrackModule extends AbstractColleague {
         Slider sl = cursors.get(trackName);
         double x = sl == null ? 0 : sl.getValue() * cv.getWidth();
 
-        ctx.drawWaveform(cv, td, ctx.getSelections().computeIfAbsent(trackName, k -> new EditorContext.Selection()));
         GraphicsContext g = cv.getGraphicsContext2D();
         g.setStroke(Color.WHITE);
         g.setLineWidth(1.0);
@@ -316,5 +359,19 @@ public class TrackModule extends AbstractColleague {
 
     private static double clamp(double v, double min, double max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    private AudioTrack getTrack(String name) {
+        AudioProject project = ctx.getAudioProject();
+        if (project == null) return null;
+        return (AudioTrack) project.getChildren().stream()
+                .filter(c -> c instanceof AudioTrack && c.getName().equals(name))
+                .findFirst().orElse(null);
+    }
+
+    private AudioSegment getMainSegment(String trackName) {
+        AudioTrack track = getTrack(trackName);
+        if (track == null || track.getChildren().isEmpty()) return null;
+        return (AudioSegment) track.getChildren().get(0);
     }
 }

@@ -3,17 +3,19 @@ package com.ivanka.audioeditor.client.core.modules;
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.core.events.EditorEventType;
 import com.ivanka.audioeditor.client.core.mediator.AbstractColleague;
+import com.ivanka.audioeditor.client.model.composite.AudioProject;
+import com.ivanka.audioeditor.client.model.composite.AudioTrack;
+import com.ivanka.audioeditor.client.model.composite.PcmUtils;
 import com.ivanka.audioeditor.client.ui.EditorContext;
 
 import javax.sound.sampled.*;
-import java.io.File;
-import java.util.concurrent.ScheduledExecutorService;
+import java.io.ByteArrayInputStream;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class PlaybackModule extends AbstractColleague {
     private final EditorContext ctx;
-
     private Clip currentClip;
     private long pausedAtMicros = 0L;
     private String playingTrack = null;
@@ -46,15 +48,29 @@ public class PlaybackModule extends AbstractColleague {
 
             closeClipQuietly();
 
-            var td = ctx.getTrackDataMap().get(trackName);
-            if (td != null && (ctx.getTrackTempFiles().get(trackName) == null || !ctx.getTrackTempFiles().get(trackName).exists())) {
-                File tmp = ctx.writeTrackTempWav(trackName, td);
-                ctx.getTrackTempFiles().put(trackName, tmp);
-            }
-            File wav = ctx.getTrackTempFiles().get(trackName);
-            if (wav == null || !wav.exists()) { ctx.alertWarn("No audio file imported for this track!"); return; }
+            AudioProject project = ctx.getAudioProject();
+            if (project == null) return;
+            AudioTrack track = (AudioTrack) project.getChildren().stream()
+                    .filter(c -> c instanceof AudioTrack && c.getName().equals(trackName))
+                    .findFirst().orElse(null);
 
-            try (AudioInputStream audioStream = AudioSystem.getAudioInputStream(wav)) {
+            if (track == null || track.getChildren().isEmpty()) {
+                ctx.alertWarn("No audio data found for this track!");
+                return;
+            }
+
+            AudioFormat format = track.getFormat();
+            float[][] samples = PcmUtils.concatTrack(track);
+            byte[] pcm = PcmUtils.toPCM16(samples);
+
+            if (pcm.length == 0) {
+                ctx.alertWarn("Track is empty.");
+                return;
+            }
+
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(pcm);
+                 AudioInputStream audioStream = new AudioInputStream(bais, format, pcm.length / format.getFrameSize())) {
+
                 currentClip = AudioSystem.getClip();
                 currentClip.open(audioStream);
             }
@@ -67,15 +83,16 @@ public class PlaybackModule extends AbstractColleague {
             }
 
             playingTrack = trackName;
-
             currentClip.addLineListener(ev -> {
-                if (currentClip == null) return;
+                if (currentClip == null || !playingTrack.equals(trackName)) return;
+
                 if (ev.getType() == LineEvent.Type.STOP) {
                     long pos = currentClip.getMicrosecondPosition();
                     long len = currentClip.getMicrosecondLength();
                     if (len > 0 && pos >= len - 1000) {
                         send(new EditorEvent(EditorEventType.PLAYBACK_FINISHED)
                                 .with("trackName", playingTrack));
+                        onStop();
                     }
                 }
             });
@@ -84,8 +101,6 @@ public class PlaybackModule extends AbstractColleague {
             pausedAtMicros = 0L;
             progressExec.scheduleAtFixedRate(this::tickProgress, 0, 50, TimeUnit.MILLISECONDS);
 
-        } catch (UnsupportedAudioFileException ex) {
-            ctx.alertError("Unsupported audio format (use WAV PCM)");
         } catch (Exception ex) {
             ex.printStackTrace();
             ctx.alertError("Cannot play audio: " + ex.getMessage());
@@ -96,30 +111,33 @@ public class PlaybackModule extends AbstractColleague {
         try {
             Clip c = currentClip;
             String tr = playingTrack;
-            if (c == null || tr == null) return;
+            if (c == null || tr == null || !c.isRunning()) return;
 
             long len = c.getMicrosecondLength();
             long pos = c.getMicrosecondPosition();
             if (len <= 0) return;
 
             double frac = Math.max(0, Math.min(1, (double) pos / (double) len));
+
             send(new EditorEvent(EditorEventType.PLAYBACK_PROGRESS)
                     .with("trackName", tr)
                     .with("fraction", frac));
 
-            if (pos >= len - 1000) {
-                send(new EditorEvent(EditorEventType.PLAYBACK_FINISHED)
-                        .with("trackName", tr));
-                onStop();
-            }
         } catch (Exception ignore) {}
     }
 
     private void onStop() {
         if (currentClip != null) {
             try {
-                pausedAtMicros = currentClip.getMicrosecondPosition();
-            } catch (Exception ignored) {}
+                if (currentClip.isRunning() ||
+                        currentClip.getMicrosecondPosition() < currentClip.getMicrosecondLength() - 1000) {
+                    pausedAtMicros = currentClip.getMicrosecondPosition();
+                } else {
+                    pausedAtMicros = 0L;
+                }
+            } catch (Exception ignored) {
+                pausedAtMicros = 0L;
+            }
         }
         closeClipQuietly();
         playingTrack = null;

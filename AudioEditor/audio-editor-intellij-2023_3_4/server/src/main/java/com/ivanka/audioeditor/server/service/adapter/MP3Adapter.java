@@ -17,4 +17,9 @@ public class MP3Adapter implements IAudioFormatAdapter {
         System.out.println("Використовується MP3Adapter → FFmpeg");
         return ffmpegAdapter.convert(inputFile, "mp3");
     }
+
+    @Override
+    public boolean supports(String format) {
+        return "mp3".equalsIgnoreCase(format);
+    }
 }

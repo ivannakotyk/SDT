@@ -24,4 +24,16 @@ public class EditorEvent {
     public boolean has(String key) {
         return data.containsKey(key);
     }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getOrDefault(String key, T defaultValue) {
+        Object val = data.get(key);
+        if (val == null) return defaultValue;
+        try {
+            return (T) val;
+        } catch (ClassCastException ex) {
+            return defaultValue;
+        }
+    }
+
 }

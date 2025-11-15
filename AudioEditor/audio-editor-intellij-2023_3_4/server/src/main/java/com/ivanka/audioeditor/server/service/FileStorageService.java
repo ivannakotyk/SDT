@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,8 +14,6 @@ import java.util.UUID;
 
 @Service
 public class FileStorageService {
-
-    private static FileStorageService INSTANCE;
 
     @Value("${storage.root}")
     private String storageRoot;
@@ -27,16 +26,6 @@ public class FileStorageService {
 
     @Value("${storage.exportsDir}")
     private String exportsDir;
-
-    private FileStorageService() {
-    }
-
-    public static synchronized FileStorageService getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new FileStorageService();
-        }
-        return INSTANCE;
-    }
 
     public File saveTempFile(MultipartFile multipartFile) throws IOException {
         Path uploadPath = Path.of(uploadsDir);
@@ -81,6 +70,22 @@ public class FileStorageService {
                 targetPath.toAbsolutePath(), Files.size(targetPath));
 
         return targetPath.toFile();
+    }
+
+    public File loadExportedFile(String filename) throws FileNotFoundException {
+        Path exportPath = Path.of(exportsDir);
+        Path filePath = exportPath.resolve(filename).toAbsolutePath();
+
+        if (!filePath.startsWith(exportPath.toAbsolutePath())) {
+            throw new FileNotFoundException("Cannot access file outside exports directory: " + filename);
+        }
+
+        File file = filePath.toFile();
+        if (file.exists() && file.canRead()) {
+            return file;
+        } else {
+            throw new FileNotFoundException("File not found or not readable: " + filename);
+        }
     }
 
     public void deleteTempFile(File file) {
