@@ -1,6 +1,6 @@
 package com.ivanka.audioeditor.server.web;
 
-import com.ivanka.audioeditor.server.dto.UserDTO;
+import com.ivanka.audioeditor.common.dto.UserDTO;
 import com.ivanka.audioeditor.server.model.AppUser;
 import com.ivanka.audioeditor.server.service.UserService;
 import org.springframework.http.ResponseEntity;

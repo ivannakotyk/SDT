@@ -1,0 +1,60 @@
+plugins {
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'org.beryx.jlink' version '2.26.0'
+}
+
+group = 'com.ivanka.audioeditor'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+application {
+    mainClass = 'com.ivanka.audioeditor.client.MainApp'
+}
+
+javafx {
+    version = "17"
+    modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.graphics' ]
+}
+
+/**
+ * FAT JAR (все всередині)
+ */
+jar {
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+/**
+ * 🟦 jpackage: створення EXE інсталятора
+ */
+jlink {
+    launcher {
+        name = 'AudioEditor'
+    }
+
+    jpackage {
+        installerName = "AudioEditor"
+        installerType = "exe"
+        appVersion = "1.0.0"
+        icon = file("app-icon.ico")
+    }
+}
+
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+
+    implementation 'javax.sound.sampled:sampled:1.0.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.32'
+    annotationProcessor 'org.projectlombok:lombok:1.18.32'
+}

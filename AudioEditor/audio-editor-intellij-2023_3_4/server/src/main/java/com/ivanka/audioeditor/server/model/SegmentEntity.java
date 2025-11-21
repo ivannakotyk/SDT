@@ -27,10 +27,17 @@ public class SegmentEntity {
     }
 
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
     public TrackEntity getTrack() { return track; }
+    public void setTrack(TrackEntity track) { this.track = track; }
+
     public AudioFileEntity getAudioFile() { return audioFile; }
+    public void setAudioFile(AudioFileEntity audioFile) { this.audioFile = audioFile; }
+
     public double getStartTimeSec() { return startTimeSec; }
     public void setStartTimeSec(double startTimeSec) { this.startTimeSec = startTimeSec; }
+
     public double getEndTimeSec() { return endTimeSec; }
     public void setEndTimeSec(double endTimeSec) { this.endTimeSec = endTimeSec; }
 }

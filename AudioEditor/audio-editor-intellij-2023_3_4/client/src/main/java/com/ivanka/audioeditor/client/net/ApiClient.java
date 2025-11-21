@@ -127,5 +127,62 @@ public class ApiClient {
         return key + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
+    public void downloadFile(String path, File destination) throws Exception {
+        String[] parts = path.split("/");
+        StringBuilder encodedPath = new StringBuilder();
 
+        for (int i = 0; i < parts.length; i++) {
+            if (!parts[i].isEmpty()) {
+
+                String encodedPart = URLEncoder.encode(parts[i], StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                encodedPath.append("/").append(encodedPart);
+            }
+        }
+
+        String finalPath = encodedPath.toString();
+        if (!path.startsWith("/") && finalPath.startsWith("/")) {
+            finalPath = finalPath.substring(1);
+        }
+
+        URI uri = URI.create(base + finalPath);
+
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(uri)
+                .GET()
+                .build();
+
+        java.net.http.HttpResponse<java.io.InputStream> res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
+
+        if (res.statusCode() >= 400) {
+            throw new RuntimeException("Download failed: " + res.statusCode());
+        }
+
+        try (java.io.InputStream in = res.body();
+             java.io.FileOutputStream out = new java.io.FileOutputStream(destination)) {
+            in.transferTo(out);
+        }
+    }
+    public void delete(String path) throws Exception {
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + path))
+                .DELETE()
+                .build();
+
+        java.net.http.HttpResponse<String> res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+        if (res.statusCode() >= 400) {
+            throw new RuntimeException("DELETE " + path + " -> " + res.statusCode() + ": " + res.body());
+        }
+    }
+
+    public void put(String path) throws Exception {
+        java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(base + path))
+                .PUT(java.net.http.HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        java.net.http.HttpResponse<String> res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+        if (res.statusCode() >= 400) {
+            throw new RuntimeException("PUT " + path + " -> " + res.statusCode() + ": " + res.body());
+        }
+    }
 }

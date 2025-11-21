@@ -36,6 +36,12 @@
       <artifactId>jackson-databind</artifactId>
       <version>2.17.1</version>
     </dependency>
+      <dependency>
+          <groupId>com.ivanka</groupId>
+          <artifactId>audio-editor-common</artifactId>
+          <version>1.0.0</version>
+          <scope>compile</scope>
+      </dependency>
   </dependencies>
 
   <build>

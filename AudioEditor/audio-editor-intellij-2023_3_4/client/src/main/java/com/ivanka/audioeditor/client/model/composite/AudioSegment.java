@@ -5,6 +5,7 @@ import java.io.File;
 
 public class AudioSegment implements AudioComponent {
 
+    private long id; // <-- НОВЕ ПОЛЕ: ID з бази даних
     private String name;
     private float[][] samples;
     private final AudioFormat format;
@@ -16,6 +17,11 @@ public class AudioSegment implements AudioComponent {
         this.samples = samples;
         this.format = fmt;
     }
+
+    // --- НОВІ МЕТОДИ ---
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
+    // -------------------
 
     public void setSamples(float[][] newSamples) {
         stop();

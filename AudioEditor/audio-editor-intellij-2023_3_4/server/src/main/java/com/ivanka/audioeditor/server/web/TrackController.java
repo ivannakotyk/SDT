@@ -29,22 +29,14 @@ public class TrackController {
             ProjectEntity p = projects.get(projectId);
             List<TrackEntity> list = repo.findByProjectOrderByTrackOrderAsc(p);
             return ResponseEntity.ok(list);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "status", 404,
-                            "error", "Project not found",
-                            "message", e.getMessage(),
-                            "projectId", projectId
-                    ));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of(
-                            "status", 500,
-                            "error", "Server error while loading tracks",
-                            "message", e.getMessage(),
-                            "projectId", projectId
-                    ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
+    }
+
+    @DeleteMapping("/{trackId}")
+    public void deleteTrack(@PathVariable Long trackId) {
+        repo.deleteById(trackId);
+        System.out.println("Deleted track ID: " + trackId);
     }
 }

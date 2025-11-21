@@ -8,6 +8,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="audio-editor-client" />
         <module name="audio-editor-server" />
+        <module name="audio-editor-common" />
       </profile>
     </annotationProcessing>
   </component>
