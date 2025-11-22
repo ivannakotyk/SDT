@@ -1,6 +1,5 @@
 package com.ivanka.audioeditor.client.core.modules;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.core.events.EditorEventType;
@@ -10,6 +9,7 @@ import com.ivanka.audioeditor.client.model.composite.AudioProject;
 import com.ivanka.audioeditor.client.model.composite.AudioTrack;
 import com.ivanka.audioeditor.client.net.ApiClient;
 import com.ivanka.audioeditor.client.ui.EditorContext;
+import com.ivanka.audioeditor.common.dto.ExportResponseDTO;
 import javafx.application.Platform;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.TextInputDialog;
@@ -106,8 +106,9 @@ public class ExportModule extends AbstractColleague {
                         "format", format
                 ), wavToSend);
 
-                Map<String, Object> res = mapper.readValue(response, new TypeReference<>() {});
-                String serverPath = String.valueOf(res.get("path"));
+                ExportResponseDTO resDTO = mapper.readValue(response, ExportResponseDTO.class);
+                String serverPath = resDTO.downloadUrl();
+
                 Platform.runLater(() -> {
                     FileChooser fileChooser = new FileChooser();
                     fileChooser.setTitle("Save Exported File");

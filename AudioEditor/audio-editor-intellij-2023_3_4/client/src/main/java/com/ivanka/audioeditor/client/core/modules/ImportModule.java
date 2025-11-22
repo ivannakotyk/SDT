@@ -13,6 +13,7 @@ import com.ivanka.audioeditor.client.model.composite.PcmUtils;
 import com.ivanka.audioeditor.client.net.ApiClient;
 import com.ivanka.audioeditor.client.ui.EditorContext;
 import com.ivanka.audioeditor.client.ui.EditorView;
+import com.ivanka.audioeditor.common.dto.SegmentDTO;
 import javafx.application.Platform;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
@@ -82,8 +83,8 @@ public class ImportModule extends AbstractColleague {
 
                     String jsonResponse = api.postMultipart("/segments/import/" + trackId, Map.of(), wavFile);
 
-                    var node = mapper.readTree(jsonResponse);
-                    long newSegmentId = node.get("id").asLong();
+                    SegmentDTO dto = mapper.readValue(jsonResponse, SegmentDTO.class);
+
                     AudioFormat[] fmt = new AudioFormat[1];
                     float[][] samples = PcmUtils.readWavStereo(wavFile, fmt);
 
@@ -98,8 +99,8 @@ public class ImportModule extends AbstractColleague {
                                 List<AudioComponent> existing = new ArrayList<>(track.getChildren());
                                 for (AudioComponent c : existing) track.remove(c);
 
-                                AudioSegment segment = new AudioSegment(f.getName(), samples, fmt[0]);
-                                segment.setId(newSegmentId);
+                                AudioSegment segment = new AudioSegment(dto.name(), samples, fmt[0]);
+                                segment.setId(dto.id()); // ID з сервера
                                 track.add(segment);
 
                                 ctx.toast("Імпорт успішний!");

@@ -1,8 +1,8 @@
 package com.ivanka.audioeditor.client.ui;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ivanka.audioeditor.client.net.ApiClient;
+import com.ivanka.audioeditor.common.dto.UserDTO;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -112,10 +112,10 @@ public class LoginView {
                         "name=" + encodedName + "&email=" + encodedEmail);
 
                 ObjectMapper mapper = new ObjectMapper();
-                JsonNode node = mapper.readTree(res);
-                userId = node.get("id").asLong();
 
-                alertInfo("Profile loaded!\nName: " + username + "\nEmail: " + userEmail);
+                UserDTO userDto = mapper.readValue(res, UserDTO.class);
+                userId = userDto.id();
+                alertInfo("Profile loaded!\nName: " + userDto.userName() + "\nEmail: " + userDto.userEmail());
                 EditorView editor = new EditorView(stage, userId);
                 stage.setScene(new Scene(editor.getRoot(), 1200, 800));
 

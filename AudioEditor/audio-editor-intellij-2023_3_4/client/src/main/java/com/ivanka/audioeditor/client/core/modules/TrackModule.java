@@ -13,6 +13,7 @@ import com.ivanka.audioeditor.client.model.composite.AudioSegment;
 import com.ivanka.audioeditor.client.model.composite.AudioTrack;
 import com.ivanka.audioeditor.client.net.ApiClient;
 import com.ivanka.audioeditor.client.ui.EditorContext;
+import com.ivanka.audioeditor.common.dto.TrackDTO;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.canvas.Canvas;
@@ -78,7 +79,11 @@ public class TrackModule extends AbstractColleague {
         long pid = ctx.getProject().id;
 
         String resp = api.get("/projects/" + pid + "/tracks");
-        List<ProjectTrack> list = mapper.readValue(resp, new TypeReference<>() {});
+        List<TrackDTO> dtos = mapper.readValue(resp, new TypeReference<>() {});
+        List<ProjectTrack> list = dtos.stream()
+                .map(dto -> new ProjectTrack(dto.id(), dto.name(), dto.order()))
+                .collect(Collectors.toList());
+
         ctx.getTrackCache().put(pid, list);
 
         Platform.runLater(() -> {
@@ -152,7 +157,6 @@ public class TrackModule extends AbstractColleague {
             ctx.redrawTrack(trackName);
             drawCursorLine(trackName);
         });
-
         canvas.setOnMouseDragged(ev -> {
             var sel = ctx.getSelections().get(trackName);
             if (sel != null) {
@@ -177,6 +181,7 @@ public class TrackModule extends AbstractColleague {
                 drawCursorLine(trackName);
             }
         });
+
         canvas.setOnMouseClicked(ev -> {
             ctx.setActiveTrackName(trackName);
             if (ev.isControlDown()) {
@@ -184,15 +189,21 @@ public class TrackModule extends AbstractColleague {
                 Slider sl = cursors.get(trackName);
                 if (sl != null) sl.setValue(frac);
                 ctx.setActiveTrackCursor(frac);
+
                 AudioSegment seg = getMainSegment(trackName);
                 if (seg != null && seg.getDurationSec() > 0) {
                     double sec = frac * seg.getDurationSec();
-                    AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_START).with("trackName", trackName).with("startAtSec", sec));
+                    AudioEditor.getInstance().notifyObservers(
+                            new EditorEvent(EditorEventType.PLAYBACK_START)
+                                    .with("trackName", trackName)
+                                    .with("startAtSec", sec)
+                    );
                 }
                 drawCursorLine(trackName);
             }
         });
     }
+
 
     private HBox buildControlBar(String trackName) {
         HBox bar = new HBox(8);
@@ -226,57 +237,103 @@ public class TrackModule extends AbstractColleague {
         cursor.setPrefWidth(200);
         cursors.put(trackName, cursor);
 
-        Label timeLabel = new Label("00:00");
+        Label timeLabel = new Label("00:00.000");
         timeLabel.setTextFill(Color.web("#cbd5e1"));
 
         btnPlay.setOnAction(ev -> {
             ctx.setActiveTrackName(trackName);
             var editor = AudioEditor.getInstance();
             AudioSegment seg = getMainSegment(trackName);
-            if (seg == null || seg.getDurationSec() <= 0) { ctx.alertWarn("Import audio first."); return; }
+            if (seg == null || seg.getDurationSec() <= 0) { ctx.alertWarn("Import audio to this track first."); return; }
+
             double frac = cursor.getValue();
             ctx.setActiveTrackCursor(frac);
             double sec = frac * seg.getDurationSec();
-            editor.notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_START).with("trackName", trackName).with("startAtSec", sec));
+
+            editor.notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_START)
+                    .with("trackName", trackName)
+                    .with("startAtSec", sec));
         });
 
-        btnStop.setOnAction(ev -> AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_STOP).with("trackName", trackName)));
+        btnStop.setOnAction(ev ->
+                AudioEditor.getInstance().notifyObservers(
+                        new EditorEvent(EditorEventType.PLAYBACK_STOP).with("trackName", trackName))
+        );
+
         cursor.setOnMouseReleased(ev -> {
             ctx.setActiveTrackName(trackName);
             AudioSegment seg = getMainSegment(trackName);
             if (seg == null || seg.getDurationSec() <= 0) return;
+
             double frac = cursor.getValue();
             ctx.setActiveTrackCursor(frac);
             double sec = frac * seg.getDurationSec();
-            AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.PLAYBACK_START).with("trackName", trackName).with("startAtSec", sec));
+
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.PLAYBACK_START)
+                            .with("trackName", trackName)
+                            .with("startAtSec", sec)
+            );
         });
 
-        btnCopy.setOnAction(ev -> { ctx.setActiveTrackName(trackName); AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_COPY).with("trackName", trackName)); });
-        btnCut.setOnAction(ev -> { ctx.setActiveTrackName(trackName); AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_CUT).with("trackName", trackName)); });
-        btnRev.setOnAction(ev -> { ctx.setActiveTrackName(trackName); AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.WAVEFORM_REDRAW).with("trackName", trackName).with("fx", "reverse")); });
+        btnCopy.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_COPY).with("trackName", trackName));
+        });
+        btnCut.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_CUT).with("trackName", trackName));
+        });
+        btnRev.setOnAction(ev -> {
+            ctx.setActiveTrackName(trackName);
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.WAVEFORM_REDRAW)
+                            .with("trackName", trackName)
+                            .with("fx", "reverse"));
+        });
         speed.setOnAction(ev -> {
             ctx.setActiveTrackName(trackName);
             String v = speed.getValue();
             double k = Double.parseDouble(v.replace("x",""));
-            AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.WAVEFORM_REDRAW).with("trackName", trackName).with("fx", "atempo:" + k));
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.WAVEFORM_REDRAW)
+                            .with("trackName", trackName)
+                            .with("fx", "atempo:" + k));
         });
 
         btnPaste.setOnAction(ev -> {
             ctx.setActiveTrackName(trackName);
-            double frac = Optional.ofNullable(cursors.get(trackName)).map(Slider::getValue).orElse(0.0);
+
+            double frac = Optional.ofNullable(cursors.get(trackName))
+                    .map(Slider::getValue)
+                    .orElse(0.0);
             ctx.setActiveTrackCursor(frac);
-            AudioEditor.getInstance().notifyObservers(new EditorEvent(EditorEventType.CLIPBOARD_PASTE).with("trackName", trackName).with("cursorFrac", ctx.getActiveTrackCursor()));
+
+            AudioEditor.getInstance().notifyObservers(
+                    new EditorEvent(EditorEventType.CLIPBOARD_PASTE)
+                            .with("trackName", trackName)
+                            .with("cursorFrac", ctx.getActiveTrackCursor()));
         });
 
         cursor.valueProperty().addListener((obs, o, n) -> {
-            if (trackName.equals(ctx.getActiveTrackName())) { ctx.setActiveTrackCursor(n.doubleValue()); }
+            if (trackName.equals(ctx.getActiveTrackName())) {
+                ctx.setActiveTrackCursor(n.doubleValue());
+            }
             AudioSegment seg = getMainSegment(trackName);
             double posSec = (seg == null ? 0.0 : n.doubleValue() * seg.getDurationSec());
             timeLabel.setText(formatTime(posSec));
             drawCursorLine(trackName);
         });
 
-        bar.getChildren().addAll(btnDel, new Separator(), btnPlay, btnStop, new Separator(), btnCopy, btnCut, btnPaste, new Separator(), btnRev, speed, cursor, timeLabel);
+        bar.getChildren().addAll(
+                btnDel, new Separator(),
+                btnPlay, btnStop, new Separator(),
+                btnCopy, btnCut, btnPaste, new Separator(),
+                btnRev, new Label("Speed:"), speed, new Separator(),
+                new Label("Cursor:"), cursor, timeLabel
+        );
         return bar;
     }
 
@@ -321,20 +378,32 @@ public class TrackModule extends AbstractColleague {
         String trackName = e.get("trackName");
         Double fracObj = e.get("fraction");
         if (trackName == null || fracObj == null) return;
+
         if (!trackName.equals(ctx.getActiveTrackName())) return;
+
         Slider sl = cursors.get(trackName);
         if (sl == null) return;
+
         double frac = Math.max(0, Math.min(1, fracObj));
-        Platform.runLater(() -> { sl.setValue(frac); ctx.setActiveTrackCursor(frac); });
+
+        Platform.runLater(() -> {
+            sl.setValue(frac);
+            ctx.setActiveTrackCursor(frac);
+        });
     }
 
     private void onPlaybackFinished(EditorEvent e) {
         String trackName = e.get("trackName");
         if (trackName == null) return;
         if (!trackName.equals(ctx.getActiveTrackName())) return;
+
         Slider sl = cursors.get(trackName);
         if (sl == null) return;
-        Platform.runLater(() -> { sl.setValue(1.0); ctx.setActiveTrackCursor(1.0); });
+
+        Platform.runLater(() -> {
+            sl.setValue(1.0);
+            ctx.setActiveTrackCursor(1.0);
+        });
     }
 
     private String formatTime(double sec) {
@@ -348,8 +417,11 @@ public class TrackModule extends AbstractColleague {
     private void drawCursorLine(String trackName) {
         Canvas cv = canvases.get(trackName);
         if (cv == null) return;
+
         AudioSegment seg = getMainSegment(trackName);
+
         ctx.drawWaveform(cv, trackName);
+
         if (seg == null || seg.getDurationSec() <= 0) {
             GraphicsContext g = cv.getGraphicsContext2D();
             g.setStroke(Color.WHITE);
@@ -357,15 +429,19 @@ public class TrackModule extends AbstractColleague {
             g.strokeLine(0, 0, 0, cv.getHeight());
             return;
         }
+
         Slider sl = cursors.get(trackName);
         double x = sl == null ? 0 : sl.getValue() * cv.getWidth();
+
         GraphicsContext g = cv.getGraphicsContext2D();
         g.setStroke(Color.WHITE);
         g.setLineWidth(1.0);
         g.strokeLine(x, 0, x, cv.getHeight());
     }
 
-    private static double clamp(double v, double min, double max) { return Math.max(min, Math.min(max, v)); }
+    private static double clamp(double v, double min, double max) {
+        return Math.max(min, Math.min(max, v));
+    }
 
     private AudioTrack getTrack(String name) {
         AudioProject project = ctx.getAudioProject();

@@ -1,16 +1,11 @@
 package com.ivanka.audioeditor.client.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class ProjectTrack {
     private long id;
     private String trackName;
     private int trackOrder;
-    private double durationSec; // рекомендовано — бекенд часто повертає
 
     public ProjectTrack() {
-        // ПУСТИЙ КОНСТРУКТОР ДЛЯ JACKSON
     }
 
     public ProjectTrack(long id, String trackName, int trackOrder) {
@@ -38,12 +33,5 @@ public class ProjectTrack {
     }
     public void setTrackOrder(int trackOrder) {
         this.trackOrder = trackOrder;
-    }
-
-    public double getDurationSec() {
-        return durationSec;
-    }
-    public void setDurationSec(double durationSec) {
-        this.durationSec = durationSec;
     }
 }

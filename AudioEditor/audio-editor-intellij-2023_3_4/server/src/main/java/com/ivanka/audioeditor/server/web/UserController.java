@@ -31,8 +31,6 @@ public class UserController {
         }
 
         AppUser user = userService.findOrCreate(name.trim(), email.trim());
-        UserDTO dto = new UserDTO(user.getId(), user.getUserName(), user.getUserEmail());
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(new UserDTO(user.getId(), user.getUserName(), user.getUserEmail()));
     }
-
 }

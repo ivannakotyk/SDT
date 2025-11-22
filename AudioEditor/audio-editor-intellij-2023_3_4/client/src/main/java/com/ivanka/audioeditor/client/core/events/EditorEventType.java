@@ -2,10 +2,8 @@ package com.ivanka.audioeditor.client.core.events;
 
 public enum EditorEventType {
     PROJECT_CREATE_REQUEST,
-    PROJECT_CREATED,
     PROJECT_SELECTED,
     TRACK_ADD_REQUEST,
-    TRACK_ADDED,
     IMPORT_REQUEST,
     AUDIO_IMPORTED,
     EXPORT_REQUEST,
@@ -19,5 +17,7 @@ public enum EditorEventType {
     TRACKS_REFRESH_REQUEST,
     NOTIFY_INFO,
     NOTIFY_WARN,
-    NOTIFY_ERROR, PLAYBACK_FINISHED, PLAYBACK_PROGRESS,
+    NOTIFY_ERROR,
+    PLAYBACK_FINISHED,
+    PLAYBACK_PROGRESS,
 }

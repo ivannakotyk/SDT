@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.nio.file.Files;
 
-
 @Controller
 @RequestMapping("/api")
 @CrossOrigin
@@ -35,28 +34,9 @@ public class FileDownloadController {
             File dir = new File(uploadsDir).getAbsoluteFile();
             File file = new File(dir, filename);
 
-            System.out.println("--- DOWNLOAD REQUEST ---");
-            System.out.println("Looking for file: " + filename);
-            System.out.println("In directory: " + dir.getAbsolutePath());
-            System.out.println("Full path target: " + file.getAbsolutePath());
-
             if (!file.exists()) {
-                System.err.println("FILE NOT FOUND on disk!");
-                if (dir.exists()) {
-                    System.out.println("Files available in directory:");
-                    String[] list = dir.list();
-                    if (list != null) {
-                        for (String f : list) System.out.println(" - " + f);
-                    } else {
-                        System.out.println(" (Directory is empty)");
-                    }
-                } else {
-                    System.err.println("Directory does not exist: " + dir.getAbsolutePath());
-                }
                 return ResponseEntity.notFound().build();
             }
-
-            System.out.println("File found! Size: " + file.length());
 
             InputStreamResource resource = new InputStreamResource(new FileInputStream(file));
             String contentType = Files.probeContentType(file.toPath());
@@ -68,7 +48,6 @@ public class FileDownloadController {
                     .body(resource);
 
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }

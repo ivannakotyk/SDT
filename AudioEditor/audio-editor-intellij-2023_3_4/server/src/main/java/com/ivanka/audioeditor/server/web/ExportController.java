@@ -1,5 +1,6 @@
 package com.ivanka.audioeditor.server.web;
 
+import com.ivanka.audioeditor.common.dto.ExportResponseDTO;
 import com.ivanka.audioeditor.server.service.ConverterService;
 import com.ivanka.audioeditor.server.service.FileStorageService;
 import org.springframework.http.ResponseEntity;
@@ -7,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -34,21 +34,14 @@ public class ExportController {
         try {
             uploaded = storage.saveTempFile(file);
             String baseName = trackName.replaceAll("[^a-zA-Z0-9._() -]+", "_");
-
             File exported = converter.export(uploaded, format, baseName);
 
             String fileName = exported.getName();
             String urlPath = "/exports/" + fileName;
-
-            Map<String, Object> res = new HashMap<>();
-            res.put("fileName", fileName);
-            res.put("path", urlPath);
-            return ResponseEntity.ok(res);
+            return ResponseEntity.ok(new ExportResponseDTO(fileName, urlPath));
 
         } catch (Exception e) {
-            Map<String, Object> err = new HashMap<>();
-            err.put("error", e.getMessage());
-            return ResponseEntity.internalServerError().body(err);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         } finally {
             if (uploaded != null) {
                 storage.deleteTempFile(uploaded);

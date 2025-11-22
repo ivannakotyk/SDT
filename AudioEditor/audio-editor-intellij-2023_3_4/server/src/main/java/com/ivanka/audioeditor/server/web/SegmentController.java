@@ -1,7 +1,9 @@
 package com.ivanka.audioeditor.server.web;
 
+import com.ivanka.audioeditor.common.dto.SegmentDTO;
 import com.ivanka.audioeditor.server.model.*;
 import com.ivanka.audioeditor.server.repo.*;
+import com.ivanka.audioeditor.server.service.DTOMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/segments")
@@ -20,21 +23,24 @@ public class SegmentController {
     private final SegmentRepository segments;
     private final TrackRepository tracks;
     private final AudioFileRepository audioFiles;
+    private final DTOMapper mapper;
 
     @Value("${storage.uploadsDir:storage/uploads}")
     private String uploadsDir;
 
     public SegmentController(SegmentRepository segments,
                              TrackRepository tracks,
-                             AudioFileRepository audioFiles) {
+                             AudioFileRepository audioFiles,
+                             DTOMapper mapper) {
         this.segments = segments;
         this.tracks = tracks;
         this.audioFiles = audioFiles;
+        this.mapper = mapper;
     }
 
     @PostMapping("/import/{trackId}")
-    public SegmentEntity importAudio(@PathVariable Long trackId,
-                                     @RequestParam("file") MultipartFile file) throws IOException {
+    public SegmentDTO importAudio(@PathVariable Long trackId,
+                                  @RequestParam("file") MultipartFile file) throws IOException {
         TrackEntity track = tracks.findById(trackId)
                 .orElseThrow(() -> new RuntimeException("Track not found"));
 
@@ -52,7 +58,8 @@ public class SegmentController {
         segment.setStartTimeSec(0.0);
         segment.setEndTimeSec(0.0);
 
-        return segments.save(segment);
+        SegmentEntity savedSegment = segments.save(segment);
+        return mapper.toSegmentDTO(savedSegment);
     }
 
     @PostMapping("/{id}/upload")
@@ -84,6 +91,20 @@ public class SegmentController {
         }
     }
 
+    @GetMapping("/by-track/{trackId}")
+    public List<SegmentDTO> byTrack(@PathVariable Long trackId) {
+        TrackEntity t = tracks.findById(trackId).orElseThrow();
+        // Використовуємо стрім для конвертації Entity -> DTO
+        return segments.findByTrackOrderByStartTimeSecAsc(t).stream()
+                .map(mapper::toSegmentDTO)
+                .collect(Collectors.toList());
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        segments.deleteById(id);
+    }
+
     private File saveFileToStorage(MultipartFile file) throws IOException {
         File dir = new File(uploadsDir).getAbsoluteFile();
         if (!dir.exists()) {
@@ -92,7 +113,11 @@ public class SegmentController {
         }
 
         String original = file.getOriginalFilename();
-        String ext = original != null && original.contains(".") ? original.substring(original.lastIndexOf(".")) : ".wav";
+        String ext = ".wav";
+        if (original != null && original.contains(".")) {
+            ext = original.substring(original.lastIndexOf("."));
+        }
+
         String uniqueName = UUID.randomUUID().toString() + ext;
 
         File dest = new File(dir, uniqueName);
@@ -100,16 +125,5 @@ public class SegmentController {
 
         System.out.println("File saved physically to: " + dest.getAbsolutePath());
         return dest;
-    }
-
-    @GetMapping("/by-track/{trackId}")
-    public List<SegmentEntity> byTrack(@PathVariable Long trackId) {
-        TrackEntity t = tracks.findById(trackId).orElseThrow();
-        return segments.findByTrackOrderByStartTimeSecAsc(t);
-    }
-
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
-        segments.deleteById(id);
     }
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ivanka.audioeditor.client.core.events.EditorEvent;
 import com.ivanka.audioeditor.client.model.ProjectModel;
 import com.ivanka.audioeditor.client.net.ApiClient;
+import com.ivanka.audioeditor.common.dto.ProjectResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,12 +47,13 @@ public class AudioEditor implements Subject {
 
         String response = api.postJson("/projects", requestBody);
 
-        var node = mapper.readTree(response);
+        ProjectResponse dto = mapper.readValue(response, ProjectResponse.class);
+
         ProjectModel pm = new ProjectModel();
-        pm.id = node.get("id").asLong();
-        pm.name = node.has("projectName") ? node.get("projectName").asText() : name;
+        pm.id = dto.id();
+        pm.name = dto.projectName();
+        pm.userId = dto.userId();
+
         return pm;
-
     }
-
 }
