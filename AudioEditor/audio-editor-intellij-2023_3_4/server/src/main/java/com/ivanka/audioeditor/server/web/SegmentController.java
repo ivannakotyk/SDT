@@ -94,7 +94,6 @@ public class SegmentController {
     @GetMapping("/by-track/{trackId}")
     public List<SegmentDTO> byTrack(@PathVariable Long trackId) {
         TrackEntity t = tracks.findById(trackId).orElseThrow();
-        // Використовуємо стрім для конвертації Entity -> DTO
         return segments.findByTrackOrderByStartTimeSecAsc(t).stream()
                 .map(mapper::toSegmentDTO)
                 .collect(Collectors.toList());
